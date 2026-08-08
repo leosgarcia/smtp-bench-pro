@@ -4,6 +4,13 @@ Todas as mudanças relevantes do SMTP Bench Pro são documentadas neste arquivo.
 
 O projeto segue versionamento semântico enquanto estiver em desenvolvimento incremental.
 
+## 0.2.6
+
+- Adicionada exportação de comparação histórica em JSON e HTML.
+- Adicionada serialização canônica de `RunComparison` para exportação determinística.
+- Adicionado relatório HTML standalone de comparação com escaping completo e CSS de impressão.
+- Adicionada ação `Exportar Comparação` no diálogo de comparação histórica.
+- Mantida fidelidade histórica: exportação não reconsulta repository, não reexecuta probes, não recalcula comparação e não reavalia regras.
 ## 0.2.5
 
 - Adicionada comparação entre duas execuções históricas persistidas.
@@ -62,3 +69,4 @@ O projeto segue versionamento semântico enquanto estiver em desenvolvimento inc
 - Fundação inicial da aplicação SMTP Bench Pro standalone.
 - Adicionados probes SMTP, STARTTLS e SMTPS.
 - Adicionados timings por etapa, persistência SQLite, GUI PySide6 e adapter Integration API v1.
+

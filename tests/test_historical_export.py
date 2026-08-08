@@ -110,7 +110,7 @@ def test_serialize_run_details_is_canonical_and_preserves_timestamps() -> None:
     payload = serialize_run_details(_details(), exported_at=FIXED_EXPORT_TIME)
 
     assert payload["export"]["application"] == "SMTP Bench Pro"
-    assert payload["export"]["application_version"] == "0.2.5"
+    assert payload["export"]["application_version"] == "0.2.6"
     assert payload["export"]["format_version"] == 1
     assert payload["export"]["exported_at"] == "2026-08-08T21:00:00+00:00"
     assert payload["run"]["created_at"] == "2026-08-08 18:15:32"
@@ -180,4 +180,5 @@ def test_json_and_html_share_canonical_payload_fundamentals(tmp_path) -> None:
     assert data["run"]["hostname"] in html
     assert data["diagnostics_profile"]["profile"] in html
     assert str(len(data["security_findings"]))
+
 

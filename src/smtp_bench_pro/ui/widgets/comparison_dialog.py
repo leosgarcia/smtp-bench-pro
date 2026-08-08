@@ -2,7 +2,22 @@
 
 from __future__ import annotations
 
-from PySide6.QtWidgets import QDialog, QLabel, QTableWidget, QTableWidgetItem, QTabWidget, QTextEdit, QVBoxLayout
+import logging
+
+from PySide6.QtGui import QAction
+from PySide6.QtWidgets import (
+    QDialog,
+    QFileDialog,
+    QHBoxLayout,
+    QLabel,
+    QMessageBox,
+    QPushButton,
+    QTableWidget,
+    QTableWidgetItem,
+    QTabWidget,
+    QTextEdit,
+    QVBoxLayout,
+)
 
 from smtp_bench_pro.comparison.models import RunComparison
 from smtp_bench_pro.comparison.presentation import (
@@ -13,6 +28,9 @@ from smtp_bench_pro.comparison.presentation import (
     trend_label,
     value_text,
 )
+from smtp_bench_pro.export.comparison_export import ComparisonExportService
+
+logger = logging.getLogger(__name__)
 
 
 class HistoricalComparisonDialog(QDialog):
@@ -21,15 +39,24 @@ class HistoricalComparisonDialog(QDialog):
     def __init__(self, comparison: RunComparison, parent=None):
         super().__init__(parent)
         self.comparison = comparison
+        self.export_service = ComparisonExportService()
         self.setWindowTitle("Comparação de Execuções")
         self.resize(980, 720)
         layout = QVBoxLayout(self)
+        header_row = QHBoxLayout()
         header = QLabel(
             f"Execução Base #{value_text(comparison.baseline.run_id)}  vs  "
             f"Execução Comparada #{value_text(comparison.compared.run_id)}"
         )
         header.setWordWrap(True)
-        layout.addWidget(header)
+        self.export_button = QPushButton("Exportar Comparação")
+        self.export_button.setMenu(self._build_export_menu())
+        header_row.addWidget(header, 1)
+        header_row.addWidget(self.export_button)
+        layout.addLayout(header_row)
+        self.status_label = QLabel("")
+        self.status_label.setWordWrap(True)
+        layout.addWidget(self.status_label)
         self.tabs = QTabWidget()
         self.tabs.addTab(self._summary_tab(), "Resumo")
         self.tabs.addTab(self._performance_tab(), "Performance")
@@ -37,6 +64,44 @@ class HistoricalComparisonDialog(QDialog):
         self.tabs.addTab(self._tls_tab(), "TLS")
         self.tabs.addTab(self._security_tab(), "Segurança")
         layout.addWidget(self.tabs, 1)
+
+    def _build_export_menu(self):
+        from PySide6.QtWidgets import QMenu
+
+        menu = QMenu(self)
+        json_action = QAction("JSON", self)
+        html_action = QAction("HTML", self)
+        json_action.triggered.connect(lambda: self._export_comparison("json"))
+        html_action.triggered.connect(lambda: self._export_comparison("html"))
+        menu.addAction(json_action)
+        menu.addAction(html_action)
+        return menu
+
+    def _export_comparison(self, export_format: str) -> None:
+        suggested = self.export_service.suggested_filename(self.comparison, export_format)
+        filter_text = "JSON Files (*.json)" if export_format == "json" else "HTML Files (*.html)"
+        destination, _selected_filter = QFileDialog.getSaveFileName(
+            self,
+            "Exportar comparação histórica",
+            suggested,
+            filter_text,
+        )
+        if not destination:
+            return
+        try:
+            result = self.export_service.export(self.comparison, destination, export_format)
+        except (OSError, ValueError):
+            logger.exception("Failed to export historical SMTP comparison")
+            QMessageBox.warning(
+                self,
+                "Falha ao exportar",
+                "Não foi possível exportar a comparação. Consulte os logs para detalhes.",
+            )
+            return
+        self.status_label.setText(
+            f"Comparação #{value_text(result.baseline_run_id)} vs #{value_text(result.compared_run_id)} "
+            f"exportada com sucesso.\n{result.path}"
+        )
 
     def _summary_tab(self) -> QTextEdit:
         view = QTextEdit()

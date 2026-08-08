@@ -17,7 +17,7 @@
 
 A ferramenta foi criada para administradores de sistemas, consultores de infraestrutura, equipes MSP, DevOps, NOC/SOC e profissionais de segurança que precisam avaliar servidores SMTP de forma reproduzível, conservadora e auditável.
 
-A versão atual é **0.2.5** e já valida a arquitetura federada do ecossistema Bench Pro: funciona como aplicação standalone e também como módulo integrável no **Bench Pro Core** via Integration API v1.
+A versão atual é **0.2.6** e já valida a arquitetura federada do ecossistema Bench Pro: funciona como aplicação standalone e também como módulo integrável no **Bench Pro Core** via Integration API v1.
 
 ## Recursos
 
@@ -43,7 +43,7 @@ A versão atual é **0.2.5** e já valida a arquitetura federada do ecossistema 
 
 SMTP Bench Pro **não** é cliente de e-mail e **não** é scanner agressivo.
 
-A versão 0.2.5 não executa:
+A versão 0.2.6 não executa:
 
 - autenticação real;
 - envio de e-mail;
@@ -76,7 +76,8 @@ A aba Histórico permite:
 - visualizar target, portas, perfil, opções e resultados;
 - reconstruir SMTP, TLS, command diagnostics e findings;
 - exportar a execução para JSON ou HTML;
-- comparar duas execuções históricas.
+- comparar duas execuções históricas;
+- exportar comparações históricas para JSON ou HTML.
 
 A visualização histórica nunca consulta o servidor novamente e nunca reavalia rules atuais.
 
@@ -109,7 +110,7 @@ Ela compara:
 - command diagnostics;
 - lifecycle de findings: novo, resolvido, persistente e alterado.
 
-Não há rede, reprobe ou reavaliação de regras durante a comparação.
+Não há rede, reprobe ou reavaliação de regras durante a comparação. A comparação já calculada também pode ser exportada para JSON ou HTML diretamente a partir de `RunComparison`.
 
 ## Arquitetura
 
@@ -170,7 +171,7 @@ python -m benchpro_core --list-modules
 Exemplo esperado:
 
 ```text
-SMTP Bench Pro 0.2.5 [API 1]
+SMTP Bench Pro 0.2.6 [API 1]
 ```
 
 ## Integration API
@@ -187,7 +188,7 @@ Metadados:
 ```text
 module_id = smtp
 display_name = SMTP Bench Pro
-version = 0.2.5
+version = 0.2.6
 integration_api = 1
 vendor = WL Tech
 capabilities = benchmark, diagnostics, history, security_audit
@@ -244,3 +245,8 @@ Estado atual validado:
 SMTP Bench Pro é distribuído sob a [Licença MIT](LICENSE).
 
 © 2026 WL Tech. Website: https://wltech.com.br
+
+
+
+
+

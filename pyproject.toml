@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "smtp-bench-pro"
-version = "0.2.5"
+version = "0.2.6"
 description = "Professional SMTP Benchmark & Diagnostics"
 authors = [
     { name = "WL Tech" }
@@ -48,6 +48,7 @@ ignore = ["UP006", "UP007"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
 
 
 

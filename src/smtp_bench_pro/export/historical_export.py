@@ -5,13 +5,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import UTC, datetime
 import json
-import os
 from pathlib import Path
 import re
-from tempfile import NamedTemporaryFile
 from typing import Any, Literal
 
 from smtp_bench_pro.export.html_exporter import write_html
+from smtp_bench_pro.export.io import atomic_write, safe_filename_part
 from smtp_bench_pro.export.json_exporter import write_json
 from smtp_bench_pro.persistence.repository import SMTPRunDetails
 from smtp_bench_pro.version import __version__
@@ -259,7 +258,7 @@ class HistoricalRunExportService:
             raise FileNotFoundError(str(path.parent))
         payload = serialize_run_details(run_details)
         writer = write_json if export_format == "json" else write_html
-        self._atomic_write(path, payload, writer)
+        atomic_write(path, payload, writer)
         run_id = run_details.run.get("id")
         return ExportResult(path=path, format=export_format, run_id=int(run_id) if run_id is not None else None)
 
@@ -267,23 +266,6 @@ class HistoricalRunExportService:
         run = run_details.run
         run_id = run.get("id") or "unknown"
         created_at = re.sub(r"\D", "", str(run.get("created_at") or ""))[:14] or "unknown-date"
-        hostname = self._safe_filename_part(str(run.get("hostname") or "smtp"))
+        hostname = safe_filename_part(str(run.get("hostname") or "smtp"))
         return f"smtp-bench-pro-run-{run_id}-{hostname}-{created_at}.{export_format}"
-
-    def _atomic_write(self, path: Path, payload: dict[str, object], writer) -> None:
-        temp_path = None
-        with NamedTemporaryFile("w", encoding="utf-8", delete=False, dir=path.parent, suffix=path.suffix) as temp_file:
-            temp_path = Path(temp_file.name)
-        try:
-            writer(temp_path, payload)
-            os.replace(temp_path, path)
-        except Exception:
-            if temp_path is not None and temp_path.exists():
-                temp_path.unlink(missing_ok=True)
-            raise
-
-    def _safe_filename_part(self, value: str) -> str:
-        safe = re.sub(r"[^A-Za-z0-9._-]+", "-", value).strip(".-")
-        return safe[:80] or "smtp"
-
 

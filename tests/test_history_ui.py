@@ -380,3 +380,66 @@ def test_history_compare_opens_dialog(qtbot, monkeypatch) -> None:
     assert calls
     assert calls[0].baseline.run_id == 18
     assert calls[0].compared.run_id == 19
+
+
+def test_comparison_dialog_export_json_uses_existing_comparison(qtbot, tmp_path, monkeypatch) -> None:
+    from smtp_bench_pro.comparison.comparator import HistoricalRunComparator
+    from smtp_bench_pro.ui.widgets.comparison_dialog import HistoricalComparisonDialog
+
+    base = _manual_details()
+    compared = _manual_details()
+    compared.run["id"] = 19
+    compared.results[0]["total_ms"] = 80.0
+    comparison = HistoricalRunComparator().compare(base, compared)
+    dialog = HistoricalComparisonDialog(comparison)
+    qtbot.addWidget(dialog)
+    output = tmp_path / "comparison.json"
+    monkeypatch.setattr(
+        "smtp_bench_pro.ui.widgets.comparison_dialog.QFileDialog.getSaveFileName",
+        lambda *args, **kwargs: (str(output), "JSON Files (*.json)"),
+    )
+    monkeypatch.setattr(
+        "smtp_bench_pro.ui.widgets.comparison_dialog.HistoricalRunComparator",
+        object(),
+        raising=False,
+    )
+
+    dialog._export_comparison("json")
+
+    assert output.exists()
+    assert '"export_type": "historical_comparison"' in output.read_text(encoding="utf-8")
+    assert "exportada com sucesso" in dialog.status_label.text()
+
+
+def test_comparison_dialog_export_cancel_and_error(qtbot, tmp_path, monkeypatch) -> None:
+    from smtp_bench_pro.comparison.comparator import HistoricalRunComparator
+    from smtp_bench_pro.ui.widgets.comparison_dialog import HistoricalComparisonDialog
+
+    base = _manual_details()
+    compared = _manual_details()
+    compared.run["id"] = 19
+    comparison = HistoricalRunComparator().compare(base, compared)
+    dialog = HistoricalComparisonDialog(comparison)
+    qtbot.addWidget(dialog)
+    monkeypatch.setattr(
+        "smtp_bench_pro.ui.widgets.comparison_dialog.QFileDialog.getSaveFileName",
+        lambda *args, **kwargs: ("", ""),
+    )
+
+    dialog._export_comparison("json")
+
+    assert list(tmp_path.iterdir()) == []
+
+    warnings = []
+    monkeypatch.setattr(
+        "smtp_bench_pro.ui.widgets.comparison_dialog.QFileDialog.getSaveFileName",
+        lambda *args, **kwargs: (str(tmp_path / "missing" / "comparison.json"), "JSON Files (*.json)"),
+    )
+    monkeypatch.setattr(
+        "smtp_bench_pro.ui.widgets.comparison_dialog.QMessageBox.warning",
+        lambda *args, **kwargs: warnings.append(args),
+    )
+
+    dialog._export_comparison("json")
+
+    assert warnings
