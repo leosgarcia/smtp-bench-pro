@@ -1,45 +1,64 @@
 # Changelog
 
+Todas as mudanças relevantes do SMTP Bench Pro são documentadas neste arquivo.
+
+O projeto segue versionamento semântico enquanto estiver em desenvolvimento incremental.
+
+## 0.2.5
+
+- Adicionada comparação entre duas execuções históricas persistidas.
+- Adicionados deltas de performance com classificação semântica: melhorou, piorou, estável ou desconhecido.
+- Adicionada comparação de capabilities EHLO, AUTH, command diagnostics, TLS e metadata.
+- Adicionado lifecycle de findings: novo, resolvido, persistente e alterado.
+- Adicionada ação Comparar Execuções na aba Histórico.
+- Adicionado diálogo read-only de comparação com abas Resumo, Performance, SMTP, TLS e Segurança.
+
+## 0.2.4
+
+- Adicionada exportação fiel de uma execução histórica persistida.
+- Adicionada serialização canônica compartilhada por JSON e HTML.
+- Adicionado export JSON UTF-8 com versão de formato de exportação.
+- Adicionado relatório HTML standalone com dados de servidor escapados.
+- Adicionada ação Exportar Execução na aba Histórico.
+
 ## 0.2.3
 
-- Added auditable History master/detail view.
-- Added persisted run detail loading for SMTP, TLS, command diagnostics, and findings.
-- Added historical security rendering from stored session data only.
-- Added lazy detail loading when a historical run is selected.
-- Added regression coverage for historical profile/options reproducibility.
+- Adicionada visualização Histórico em master/detail.
+- Adicionado carregamento de detalhes persistidos para SMTP, TLS, command diagnostics e findings.
+- Adicionada renderização de segurança histórica usando somente dados armazenados.
+- Adicionado lazy loading de detalhes ao selecionar execução histórica.
+- Adicionada cobertura de regressão para reprodutibilidade de perfil e opções históricas.
+
 ## 0.2.2
 
-- Added Security tab diagnostic summary panel.
-- Added command diagnostics table with user-facing status labels.
-- Added command-to-finding association details.
-- Improved empty states and partial diagnostic presentation.
-- Added UI/test coverage for profile summary rendering and command diagnostic states.
+- Adicionado painel Resumo do Diagnóstico na aba Segurança.
+- Adicionada tabela de command diagnostics com labels amigáveis ao usuário.
+- Adicionada associação entre comandos e findings.
+- Melhorados estados vazios e apresentação de diagnósticos parciais.
+- Adicionada cobertura de UI para perfis, estados de comandos e findings associados.
 
 ## 0.2.1
 
-- Added diagnostics profiles: Safe, Extended, and Manual.
-- Made Safe the default diagnostics behavior.
-- Disabled VRFY/EXPN by default and exposed them only through explicit Extended/Manual profile selection.
-- Added structured command diagnostic states: NOT_TESTED, ENABLED, DISABLED, UNKNOWN.
-- Added SQLite schema migration v3 for diagnostics profile/options audit data.
-- Added GUI profile selector and Manual command controls.
+- Adicionados perfis de diagnóstico: Seguro, Estendido e Manual.
+- Definido o perfil Seguro como padrão.
+- VRFY/EXPN desabilitados por padrão e disponíveis somente por escolha explícita.
+- Adicionados estados estruturados de command diagnostics: `NOT_TESTED`, `ENABLED`, `DISABLED`, `UNKNOWN`.
+- Adicionada migration SQLite schema v3 para perfil/opções de diagnóstico.
+- Adicionados controles de perfil e seleção manual na GUI.
 
 ## 0.2.0
 
-- Added SMTP Diagnostics Service.
-- Added EHLO before/after TLS snapshots.
-- Added AUTH mechanism inspection without credentials.
-- Added STARTTLS, TLS, certificate, banner, and SMTP command posture analysis.
-- Added security rule engine with stable finding IDs.
-- Added Diagnostics and Security GUI tabs.
-- Added SQLite schema migration v1 -> v2 for diagnostics and findings.
-- Updated module capabilities to `benchmark`, `diagnostics`, `history`, and `security_audit`.
+- Adicionado SMTP Diagnostics Service.
+- Adicionados snapshots EHLO antes e depois do TLS.
+- Adicionada inspeção de AUTH sem credenciais.
+- Adicionada análise de STARTTLS, TLS, certificado, banner e comandos SMTP.
+- Adicionado Security Rule Engine com IDs estáveis de findings.
+- Adicionadas abas Diagnóstico e Segurança na GUI.
+- Adicionada migration SQLite v1 para v2 com diagnostics e findings.
+- Capabilities atualizadas para `benchmark`, `diagnostics`, `history` e `security_audit`.
 
 ## 0.1.0
 
-- Initial standalone SMTP benchmark foundation.
-- Added SMTP/STARTTLS/SMTPS probes, timings, SQLite persistence, PySide6 UI, and Integration API v1 adapter.
-
-
-
-
+- Fundação inicial da aplicação SMTP Bench Pro standalone.
+- Adicionados probes SMTP, STARTTLS e SMTPS.
+- Adicionados timings por etapa, persistência SQLite, GUI PySide6 e adapter Integration API v1.
