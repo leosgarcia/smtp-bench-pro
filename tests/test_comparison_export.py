@@ -5,7 +5,7 @@ import sys
 from smtp_bench_pro.comparison.comparator import HistoricalRunComparator
 from smtp_bench_pro.export.comparison_export import ComparisonExportService, serialize_comparison
 from smtp_bench_pro.export.comparison_html_exporter import render_comparison_html
-from tests.test_historical_comparison import _details, _finding
+from helpers import _details, _finding
 
 FIXED_EXPORT_TIME = datetime(2026, 8, 8, 22, 0, 0, tzinfo=UTC)
 
