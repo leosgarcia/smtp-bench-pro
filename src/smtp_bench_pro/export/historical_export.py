@@ -9,9 +9,17 @@ from pathlib import Path
 import re
 from typing import Any, Literal
 
+from smtp_bench_pro.domain.mail_dns import MailDNSRunSnapshot
 from smtp_bench_pro.export.html_exporter import write_html
 from smtp_bench_pro.export.io import atomic_write, safe_filename_part
 from smtp_bench_pro.export.json_exporter import write_json
+from smtp_bench_pro.persistence.mail_dns_serializer import (
+    serialize_dmarc_result,
+    serialize_identity_summary,
+    serialize_mail_dns_findings,
+    serialize_routing_result,
+    serialize_spf_result,
+)
 from smtp_bench_pro.persistence.repository import SMTPRunDetails
 from smtp_bench_pro.version import __version__
 
@@ -203,10 +211,36 @@ def _diagnostics_profile(run: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def serialize_mail_dns_snapshot_to_dict(snapshot: MailDNSRunSnapshot | None) -> dict[str, Any] | None:
+    if snapshot is None:
+        return None
+
+    mx_json, ptr_json = serialize_routing_result(snapshot.routing)
+    spf_json = serialize_spf_result(snapshot.spf)
+    dmarc_json = serialize_dmarc_result(snapshot.dmarc)
+    summary_json = serialize_identity_summary(snapshot.identity_summary)
+    findings_json = serialize_mail_dns_findings(snapshot.findings)
+
+    mx_dict = json.loads(mx_json)
+    ptr_dict = json.loads(ptr_json)
+    mx_dict["ptr"] = ptr_dict
+
+    return {
+        "domain": snapshot.domain,
+        "created_at": snapshot.created_at,
+        "routing": mx_dict,
+        "spf": json.loads(spf_json),
+        "dmarc": json.loads(dmarc_json),
+        "identity_summary": json.loads(summary_json),
+        "findings": json.loads(findings_json),
+    }
+
+
 def serialize_run_details(
     run_details: SMTPRunDetails,
     *,
     exported_at: datetime | None = None,
+    mail_dns_snapshot: MailDNSRunSnapshot | None = None,
 ) -> dict[str, Any]:
     """Build a deterministic external representation from persisted SMTPRunDetails only."""
     exported_at = exported_at or datetime.now(UTC)
@@ -236,6 +270,7 @@ def serialize_run_details(
         "tls": [_tls_payload(result) for result in results],
         "command_diagnostics": [command for result in results for command in _command_payload(result)],
         "security_findings": [_finding_payload(row) for row in run_details.findings],
+        "mail_dns": serialize_mail_dns_snapshot_to_dict(mail_dns_snapshot),
     }
     return _json_value(payload)
 
@@ -248,6 +283,7 @@ class HistoricalRunExportService:
         run_details: SMTPRunDetails,
         destination: str | Path,
         export_format: ExportFormat,
+        mail_dns_snapshot: MailDNSRunSnapshot | None = None,
     ) -> ExportResult:
         path = Path(destination)
         if export_format not in {"json", "html"}:
@@ -256,7 +292,7 @@ class HistoricalRunExportService:
             path = path.with_suffix(f".{export_format}")
         if not path.parent.exists():
             raise FileNotFoundError(str(path.parent))
-        payload = serialize_run_details(run_details)
+        payload = serialize_run_details(run_details, mail_dns_snapshot=mail_dns_snapshot)
         writer = write_json if export_format == "json" else write_html
         atomic_write(path, payload, writer)
         run_id = run_details.run.get("id")

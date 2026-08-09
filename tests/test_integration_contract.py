@@ -4,6 +4,7 @@ import pkgutil
 from PySide6.QtWidgets import QWidget
 
 from smtp_bench_pro.integration.module import SMTPBenchModule
+from smtp_bench_pro.version import __version__
 
 
 def test_module_contract(qtbot) -> None:
@@ -11,7 +12,7 @@ def test_module_contract(qtbot) -> None:
 
     assert module.module_id == "smtp"
     assert module.display_name == "SMTP Bench Pro"
-    assert module.version == "0.2.6"
+    assert module.version == __version__
     assert module.integration_api == 1
     assert module.vendor == "WL Tech"
     assert module.capabilities == frozenset({"benchmark", "diagnostics", "history", "security_audit"})

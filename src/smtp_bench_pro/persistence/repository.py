@@ -8,8 +8,21 @@ import json
 
 from smtp_bench_pro.application.diagnostics import SMTPDiagnosticsService
 from smtp_bench_pro.domain.diagnostic_options import DiagnosticsOptions
+from smtp_bench_pro.domain.mail_dns import MailDNSRunSnapshot
 from smtp_bench_pro.domain.results import BenchmarkRunResult, SMTPProbeResult
 from smtp_bench_pro.persistence.database import SMTPDatabase
+from smtp_bench_pro.persistence.mail_dns_serializer import (
+    deserialize_dmarc_result,
+    deserialize_identity_summary,
+    deserialize_mail_dns_findings,
+    deserialize_routing_result,
+    deserialize_spf_result,
+    serialize_dmarc_result,
+    serialize_identity_summary,
+    serialize_mail_dns_findings,
+    serialize_routing_result,
+    serialize_spf_result,
+)
 
 
 def _json_default(value):
@@ -114,6 +127,93 @@ class SMTPBenchmarkRepository:
             results=run_result.results,
             diagnostics_options=run_result.results[0].diagnostics_options if run_result.results else None,
         )
+
+    def save_mail_dns_snapshot(self, snapshot: MailDNSRunSnapshot) -> int:
+        """Persists a complete Mail DNS snapshot for a benchmark run in a single transaction."""
+        mx_json, ptr_json = serialize_routing_result(snapshot.routing)
+        spf_json = serialize_spf_result(snapshot.spf)
+        dmarc_json = serialize_dmarc_result(snapshot.dmarc)
+        summary_json = serialize_identity_summary(snapshot.identity_summary)
+        findings_json = serialize_mail_dns_findings(snapshot.findings)
+
+        with self.database.connect() as connection:
+            # Check if snapshot for run_id already exists (cardinality 1:1)
+            existing = connection.execute(
+                "SELECT id FROM mail_dns_runs WHERE run_id = ?", (snapshot.run_id,)
+            ).fetchone()
+            if existing:
+                raise ValueError(f"Mail DNS snapshot already exists for run_id {snapshot.run_id}")
+
+            cursor = connection.execute(
+                """
+                INSERT INTO mail_dns_runs (
+                    run_id, domain, mx_json, ptr_json, spf_json, dmarc_json,
+                    identity_summary_json, findings_json, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    snapshot.run_id,
+                    snapshot.domain,
+                    mx_json,
+                    ptr_json,
+                    spf_json,
+                    dmarc_json,
+                    summary_json,
+                    findings_json,
+                    snapshot.created_at,
+                ),
+            )
+            return int(cursor.lastrowid)
+
+    def get_mail_dns_snapshot(self, run_id: int) -> MailDNSRunSnapshot | None:
+        """Reconstructs the full MailDNSRunSnapshot for a given run_id without network or rules evaluation."""
+        with self.database.connect() as connection:
+            row = connection.execute(
+                """
+                SELECT id, run_id, domain, mx_json, ptr_json, spf_json, dmarc_json,
+                       identity_summary_json, findings_json, created_at
+                FROM mail_dns_runs
+                WHERE run_id = ?
+                """,
+                (run_id,),
+            ).fetchone()
+
+            if not row:
+                return None
+
+            try:
+                routing = deserialize_routing_result(
+                    domain=row["domain"],
+                    queried_at=row["created_at"],
+                    mx_json=row["mx_json"],
+                    ptr_json=row["ptr_json"],
+                )
+                spf = deserialize_spf_result(row["spf_json"])
+                dmarc = deserialize_dmarc_result(row["dmarc_json"])
+                summary = deserialize_identity_summary(row["identity_summary_json"])
+                findings = deserialize_mail_dns_findings(row["findings_json"])
+
+                return MailDNSRunSnapshot(
+                    id=row["id"],
+                    run_id=row["run_id"],
+                    domain=row["domain"],
+                    routing=routing,
+                    spf=spf,
+                    dmarc=dmarc,
+                    identity_summary=summary,
+                    findings=findings,
+                    created_at=row["created_at"],
+                )
+            except Exception as exc:
+                raise ValueError(f"Corrupt Mail DNS snapshot JSON for run_id {run_id}: {exc}") from exc
+
+    def has_mail_dns_snapshot(self, run_id: int) -> bool:
+        """Returns True if a Mail DNS snapshot exists for the given run_id."""
+        with self.database.connect() as connection:
+            row = connection.execute(
+                "SELECT 1 FROM mail_dns_runs WHERE run_id = ?", (run_id,)
+            ).fetchone()
+            return bool(row)
 
     def list_runs(self, limit: int = 50) -> list[dict[str, object]]:
         with self.database.connect() as connection:

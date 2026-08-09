@@ -6,6 +6,7 @@ from smtp_bench_pro.comparison.comparator import HistoricalRunComparator
 from smtp_bench_pro.export.comparison_export import ComparisonExportService, serialize_comparison
 from smtp_bench_pro.export.comparison_html_exporter import render_comparison_html
 from helpers import _details, _finding
+from smtp_bench_pro.version import __version__
 
 FIXED_EXPORT_TIME = datetime(2026, 8, 8, 22, 0, 0, tzinfo=UTC)
 
@@ -44,7 +45,7 @@ def test_serialize_comparison_is_canonical_and_uses_run_comparison_only() -> Non
 
     assert payload["export"] == {
         "application": "SMTP Bench Pro",
-        "application_version": "0.2.6",
+        "application_version": __version__,
         "export_type": "historical_comparison",
         "exported_at": "2026-08-08T22:00:00+00:00",
         "format_version": 1,

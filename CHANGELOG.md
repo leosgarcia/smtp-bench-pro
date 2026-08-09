@@ -4,6 +4,17 @@ Todas as mudanças relevantes do SMTP Bench Pro são documentadas neste arquivo.
 
 O projeto segue versionamento semântico enquanto estiver em desenvolvimento incremental.
 
+## 0.3.0
+
+- Adicionada aba "DNS de E-mail" para diagnóstico estático de Mail DNS.
+- Adicionada camada MailDNSResolver para consulta de MX, A/AAAA, PTR e FCRDNS.
+- Adicionado motor de análise SPF (RFC 7208) com parser de termos, limitação de 10 lookups DNS e 2 void lookups.
+- Adicionado motor de análise DMARC (RFC 7489) com extração de políticas, alinhamento e resolução de Organizational Domain via tldextract (Public Suffix List) 100% offline.
+- Adicionado MailDNSFindingsEngine com 11 regras de segurança congeladas para MX, PTR, SPF e DMARC.
+- Adicionada migration SQLite Schema v4 para persistência de snapshots `MailDNSRunSnapshot`.
+- Adicionada visualização histórica read-only na aba Histórico para snapshots Mail DNS.
+- Adicionada exportação JSON e HTML para snapshots Mail DNS com sanitização XSS de 100% dos campos.
+
 ## 0.2.6
 
 - Adicionada exportação de comparação histórica em JSON e HTML.

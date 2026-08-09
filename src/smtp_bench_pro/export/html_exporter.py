@@ -174,6 +174,162 @@ def _findings_table(findings: list[dict[str, Any]]) -> str:
     )
 
 
+def _mail_dns_section(mail_dns: dict[str, Any] | None) -> str:
+    if not isinstance(mail_dns, dict) or not mail_dns:
+        return _section("DNS de E-mail", "<p>DNS de E-mail não disponível para esta execução.</p>")
+
+    summary = mail_dns.get("identity_summary", {}) if isinstance(mail_dns.get("identity_summary"), dict) else {}
+    summary_html = _kv_table(
+        [
+            ("Domínio", mail_dns.get("domain")),
+            ("Organizational Domain", summary.get("organizational_domain")),
+            ("Contagem de MX", summary.get("mx_count")),
+            ("Null MX", "Sim" if summary.get("has_null_mx") else "Não"),
+            ("Política SPF", summary.get("spf_policy")),
+            ("Política DMARC", summary.get("dmarc_policy")),
+            ("FCRDNS Alinhado", f"{summary.get('fcrdns_aligned_ips', 0)}/{summary.get('fcrdns_total_ips', 0)} IPs"),
+        ]
+    )
+
+    # Routing (MX Table)
+    mx_data = mail_dns.get("routing", {}) if isinstance(mail_dns.get("routing"), dict) else {}
+    mx_records = mx_data.get("records", []) if isinstance(mx_data.get("records"), list) else []
+    mx_rows = []
+    for r in mx_records:
+        if isinstance(r, dict):
+            addrs_v4 = ", ".join(a.get("ip", "") for a in r.get("addresses_v4", []) if isinstance(a, dict)) or "-"
+            addrs_v6 = ", ".join(a.get("ip", "") for a in r.get("addresses_v6", []) if isinstance(a, dict)) or "-"
+            mx_rows.append(
+                "<tr>"
+                + _cell(r.get("preference"))
+                + _cell(r.get("exchange"))
+                + _cell(addrs_v4)
+                + _cell(addrs_v6)
+                + _cell("Sim" if r.get("cname_detected") else "Não")
+                + "</tr>"
+            )
+    mx_body = "".join(mx_rows) or '<tr><td colspan="5">Nenhum MX</td></tr>'
+    mx_table = (
+        "<table><thead><tr><th>Prioridade</th><th>Exchange</th><th>IPv4</th><th>IPv6</th><th>CNAME?</th></tr></thead>"
+        f"<tbody>{mx_body}</tbody></table>"
+    )
+
+    # PTR Table
+    ptr_data = mx_data.get("ptr", {}).get("results", []) if isinstance(mx_data.get("ptr"), dict) else []
+    ptr_rows = []
+    if isinstance(ptr_data, list):
+        for p in ptr_data:
+            if isinstance(p, dict):
+                ptr_hosts = ", ".join(p.get("ptr_hostnames", [])) or "-"
+                fwd_ips = ", ".join(p.get("forward_ips", [])) or "-"
+                ptr_rows.append(
+                    "<tr>"
+                    + _cell(p.get("ip"))
+                    + _cell(ptr_hosts)
+                    + _cell(fwd_ips)
+                    + _cell(p.get("status"))
+                    + "</tr>"
+                )
+    ptr_body = "".join(ptr_rows) or '<tr><td colspan="4">Nenhum PTR</td></tr>'
+    ptr_table = (
+        "<table><thead><tr><th>IP</th><th>PTR Hostnames</th><th>Forward IPs</th><th>Status</th></tr></thead>"
+        f"<tbody>{ptr_body}</tbody></table>"
+    )
+
+    # SPF Details & Terms Table
+    spf_data = mail_dns.get("spf", {}) if isinstance(mail_dns.get("spf"), dict) else {}
+    spf_terms = spf_data.get("terms", []) if isinstance(spf_data.get("terms"), list) else []
+    spf_term_rows = []
+    for t in spf_terms:
+        if isinstance(t, dict):
+            spf_term_rows.append(
+                "<tr>"
+                + _cell(t.get("qualifier"))
+                + _cell(t.get("mechanism"))
+                + _cell(t.get("value"))
+                + _cell("Sim" if t.get("causes_dns_lookup") else "Não")
+                + "</tr>"
+            )
+    spf_body = "".join(spf_term_rows) or '<tr><td colspan="4">Nenhum termo</td></tr>'
+    spf_table = (
+        "<table><thead><tr><th>Qualificador</th><th>Mecanismo</th><th>Valor</th><th>Lookup?</th></tr></thead>"
+        f"<tbody>{spf_body}</tbody></table>"
+    )
+    spf_kv = _kv_table(
+        [
+            ("Registro SPF", spf_data.get("raw_record")),
+            ("Status", spf_data.get("status")),
+            (
+                "DNS Lookups",
+                f"{spf_data.get('dns_lookup_count', 0)} / 10 (Void: {spf_data.get('void_lookup_count', 0)})",
+            ),
+            ("Qualificador all", spf_data.get("all_qualifier")),
+            ("Uso de ptr", "Sim (Depreciado)" if spf_data.get("uses_ptr_mechanism") else "Não"),
+            ("Erro de validação", spf_data.get("validation_error")),
+        ]
+    )
+
+    # DMARC Details
+    dmarc_data = mail_dns.get("dmarc", {}) if isinstance(mail_dns.get("dmarc"), dict) else {}
+    dmarc_kv = _kv_table(
+        [
+            ("Registro DMARC", dmarc_data.get("raw_record")),
+            ("Status", dmarc_data.get("status")),
+            ("Política p", dmarc_data.get("policy")),
+            ("Subdomínio sp", dmarc_data.get("subdomain_policy")),
+            ("Percentual pct", f"{dmarc_data.get('pct', 100)}%"),
+            ("Modo ADKIM", dmarc_data.get("adkim")),
+            ("Modo ASPF", dmarc_data.get("aspf")),
+            ("Organizational Domain", dmarc_data.get("organizational_domain")),
+            ("Relatórios RUA", _list(dmarc_data.get("rua"))),
+            ("Relatórios RUF", _list(dmarc_data.get("ruf"))),
+            ("Erros de validação", _list(dmarc_data.get("validation_errors"))),
+        ]
+    )
+
+    # Findings Table
+    findings = mail_dns.get("findings", []) if isinstance(mail_dns.get("findings"), list) else []
+    finding_rows = []
+    for f in findings:
+        if isinstance(f, dict):
+            severity = _esc(f.get("severity"))
+            sev_class = f'class="sev sev-{severity.lower()}"'
+            finding_rows.append(
+                f"<tr><td><span {sev_class}>{severity}</span></td>"
+                + _cell(f.get("id"))
+                + _cell(f.get("category"))
+                + _cell(f.get("title"))
+                + _cell(f.get("evidence"))
+                + _cell(f.get("recommendation"))
+                + "</tr>"
+            )
+    findings_body = "".join(finding_rows) or '<tr><td colspan="6">Nenhum achado Mail DNS</td></tr>'
+    findings_table = (
+        "<table><thead><tr><th>Severity</th><th>ID</th><th>Categoria</th><th>Título</th>"
+        "<th>Evidência</th><th>Recomendação</th></tr></thead>"
+        f"<tbody>{findings_body}</tbody></table>"
+    )
+
+    body = "".join(
+        [
+            "<h3>Resumo de Identidade</h3>",
+            summary_html,
+            "<h3>Servidores MX</h3>",
+            mx_table,
+            "<h3>Validação PTR / FCRDNS</h3>",
+            ptr_table,
+            "<h3>Diagnóstico SPF</h3>",
+            spf_kv,
+            spf_table,
+            "<h3>Diagnóstico DMARC</h3>",
+            dmarc_kv,
+            "<h3>Achados de Segurança Mail DNS</h3>",
+            findings_table,
+        ]
+    )
+    return _section("DNS de E-mail", body)
+
+
 def render_html(payload: dict[str, Any]) -> str:
     run = payload.get("run", {}) if isinstance(payload.get("run"), dict) else {}
     profile = payload.get("diagnostics_profile", {}) if isinstance(payload.get("diagnostics_profile"), dict) else {}
@@ -206,6 +362,7 @@ def render_html(payload: dict[str, Any]) -> str:
             _section("TLS", _tls_table(payload.get("tls", []))),
             _section("Command Diagnostics", _commands_table(payload.get("command_diagnostics", []))),
             _section("Security Findings", _findings_table(payload.get("security_findings", []))),
+            _mail_dns_section(payload.get("mail_dns")),
         ]
     )
     title = f"SMTP Bench Pro - Historical SMTP Diagnostic Report - Run #{_esc(run.get('id'))}"

@@ -7,7 +7,7 @@ import sqlite3
 
 from smtp_bench_pro.paths import database_path
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 
 class SMTPDatabase:
@@ -34,6 +34,9 @@ class SMTPDatabase:
                 version = 2
             if version < 3:
                 self._migrate_v3(connection)
+                version = 3
+            if version < 4:
+                self._migrate_v4(connection)
             connection.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
 
     def _create_v1(self, connection: sqlite3.Connection) -> None:
@@ -132,3 +135,24 @@ class SMTPDatabase:
             connection.execute(
                 "ALTER TABLE smtp_results ADD COLUMN command_diagnostics_json TEXT NOT NULL DEFAULT '[]'"
             )
+
+    def _migrate_v4(self, connection: sqlite3.Connection) -> None:
+        connection.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS mail_dns_runs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                run_id INTEGER NOT NULL UNIQUE REFERENCES benchmark_runs(id) ON DELETE CASCADE,
+                domain TEXT NOT NULL,
+                mx_json TEXT NOT NULL,
+                ptr_json TEXT NOT NULL,
+                spf_json TEXT NOT NULL,
+                dmarc_json TEXT NOT NULL,
+                identity_summary_json TEXT NOT NULL,
+                findings_json TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_mail_dns_runs_run_id ON mail_dns_runs(run_id);
+            CREATE INDEX IF NOT EXISTS idx_mail_dns_runs_domain ON mail_dns_runs(domain);
+            """
+        )

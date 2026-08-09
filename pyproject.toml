@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "smtp-bench-pro"
-version = "0.2.6"
+version = "0.3.0"
 description = "Professional SMTP Benchmark & Diagnostics"
 authors = [
     { name = "WL Tech" }
@@ -14,6 +14,8 @@ license = { text = "MIT" }
 requires-python = ">=3.11"
 dependencies = [
     "PySide6>=6.5.0",
+    "dnspython>=2.4.0",
+    "tldextract>=5.0.0",
 ]
 
 [project.optional-dependencies]

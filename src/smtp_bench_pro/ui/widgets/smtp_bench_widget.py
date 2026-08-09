@@ -31,6 +31,8 @@ from PySide6.QtWidgets import (
 
 from smtp_bench_pro.application.diagnostics import SMTPDiagnosticsService
 from smtp_bench_pro.application.services import BenchmarkRequest, SMTPBenchmarkService
+from smtp_bench_pro.ui.historical_mail_dns_widget import HistoricalMailDNSWidget
+from smtp_bench_pro.ui.mail_dns_tab import MailDNSTabWidget
 from smtp_bench_pro.domain.diagnostic_options import (
     CommandDiagnosticResult,
     CommandDiagnosticStatus,
@@ -182,6 +184,8 @@ class SMTPBenchWidget(QWidget):
         self.tab_widget.addTab(self.diagnostics_tab, "Diagnóstico")
         self.tab_widget.addTab(self.security_tab, "Segurança")
         self.tab_widget.addTab(self.history_tab, "Histórico")
+        self.mail_dns_tab = MailDNSTabWidget(repository=self.repository)
+        self.tab_widget.addTab(self.mail_dns_tab, "DNS de E-mail")
         if include_about:
             about = QLabel(f"SMTP Bench Pro\nVersion {__version__}\nWL Tech\n(c) 2026 WL Tech")
             about.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -342,6 +346,8 @@ class SMTPBenchWidget(QWidget):
         self.history_detail_tabs.addTab(self.history_smtp_view, "SMTP")
         self.history_detail_tabs.addTab(self.history_tls_view, "TLS")
         self.history_detail_tabs.addTab(self._build_history_security_panel(), "Segurança")
+        self.history_mail_dns_widget = HistoricalMailDNSWidget()
+        self.history_detail_tabs.addTab(self.history_mail_dns_widget, "DNS de E-mail")
         splitter.addWidget(detail)
         splitter.setSizes([350, 650])
         layout.addWidget(splitter, 1)
@@ -733,7 +739,12 @@ class SMTPBenchWidget(QWidget):
         if not destination:
             return
         try:
-            result = self.export_service.export(self._selected_history_details, destination, export_format)
+            run_id = self._selected_history_details.run.get("id")
+            get_snapshot_fn = getattr(self.repository, "get_mail_dns_snapshot", None)
+            snapshot = get_snapshot_fn(int(run_id)) if (get_snapshot_fn is not None and run_id is not None) else None
+            result = self.export_service.export(
+                self._selected_history_details, destination, export_format, mail_dns_snapshot=snapshot
+            )
         except (OSError, ValueError):
             logger.exception("Failed to export historical SMTP run")
             QMessageBox.warning(
@@ -819,6 +830,8 @@ class SMTPBenchWidget(QWidget):
         self.history_findings_table.setRowCount(0)
         self.history_command_details.setPlainText("Nenhum diagnóstico de comando disponível.")
         self.history_finding_details.setPlainText("Nenhum diagnóstico de segurança disponível.")
+        if hasattr(self, "history_mail_dns_widget"):
+            self.history_mail_dns_widget.set_snapshot(None)
 
     def _render_history_details(self, details: SMTPRunDetails) -> None:
         self._selected_history_details = details
@@ -848,6 +861,12 @@ class SMTPBenchWidget(QWidget):
         self.history_smtp_view.setPlainText(self._history_smtp_text(details.results))
         self.history_tls_view.setPlainText(self._history_tls_text(details.results))
         self._render_history_security(options, command_results, findings, self._has_partial_results(details.results))
+
+        if hasattr(self, "history_mail_dns_widget"):
+            run_id = run.get("id")
+            get_snapshot_fn = getattr(self.repository, "get_mail_dns_snapshot", None)
+            snapshot = get_snapshot_fn(int(run_id)) if (get_snapshot_fn is not None and run_id is not None) else None
+            self.history_mail_dns_widget.set_snapshot(snapshot)
 
     def _history_summary_text(
         self,

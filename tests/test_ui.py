@@ -25,7 +25,7 @@ def test_integrated_widget_hides_about_tab(qtbot, tmp_path) -> None:
     qtbot.addWidget(widget)
 
     labels = [widget.tab_widget.tabText(index) for index in range(widget.tab_widget.count())]
-    assert labels == ["Benchmark", "Diagnóstico", "Segurança", "Histórico"]
+    assert labels == ["Benchmark", "Diagnóstico", "Segurança", "Histórico", "DNS de E-mail"]
 
 
 

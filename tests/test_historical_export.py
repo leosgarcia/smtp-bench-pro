@@ -4,6 +4,7 @@ import json
 from smtp_bench_pro.export.historical_export import HistoricalRunExportService, serialize_run_details
 from smtp_bench_pro.export.html_exporter import render_html
 from smtp_bench_pro.persistence.repository import SMTPRunDetails
+from smtp_bench_pro.version import __version__
 
 
 FIXED_EXPORT_TIME = datetime(2026, 8, 8, 21, 0, 0, tzinfo=UTC)
@@ -110,7 +111,7 @@ def test_serialize_run_details_is_canonical_and_preserves_timestamps() -> None:
     payload = serialize_run_details(_details(), exported_at=FIXED_EXPORT_TIME)
 
     assert payload["export"]["application"] == "SMTP Bench Pro"
-    assert payload["export"]["application_version"] == "0.2.6"
+    assert payload["export"]["application_version"] == __version__
     assert payload["export"]["format_version"] == 1
     assert payload["export"]["exported_at"] == "2026-08-08T21:00:00+00:00"
     assert payload["run"]["created_at"] == "2026-08-08 18:15:32"
