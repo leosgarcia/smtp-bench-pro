@@ -5,13 +5,13 @@ Estes procedimentos documentam o fluxo operacional de release do SMTP Bench Pro.
 ## Versão atual
 
 ```text
-SMTP Bench Pro v1.0.0-rc1
+SMTP Bench Pro v1.0.0
 ```
 
 Notas públicas da versão:
 
 ```text
-docs/releases/v1.0.0-rc1.md
+docs/releases/v1.0.0.md
 ```
 
 ## Remote oficial
@@ -56,25 +56,25 @@ Validações manuais recomendadas:
 
 ```bash
 git fetch --tags
-git tag -a v1.0.0-rc1 -m "SMTP Bench Pro v1.0.0-rc1"
+git tag -a v1.0.0 -m "SMTP Bench Pro v1.0.0"
 git push origin main
-git push origin v1.0.0-rc1
+git push origin v1.0.0
 ```
 
 ## Criar release manualmente
 
 ```bash
-gh release create v1.0.0-rc1 \
+gh release create v1.0.0 \
   --repo leosgarcia/smtp-bench-pro \
-  --title "SMTP Bench Pro v1.0.0-rc1" \
-  --notes-file docs/releases/v1.0.0-rc1.md
+  --title "SMTP Bench Pro v1.0.0" \
+  --notes-file docs/releases/v1.0.0.md
 ```
 
 ## Artefatos esperados
 
 ```text
-SMTP-Bench-Pro-1.0.0-rc1-Windows-x64.zip
-SMTP-Bench-Pro-1.0.0-rc1-Windows-x64.zip.sha256
+SMTP-Bench-Pro-1.0.0-Windows-x64.zip
+SMTP-Bench-Pro-1.0.0-Windows-x64.zip.sha256
 ```
 
 ## Observações

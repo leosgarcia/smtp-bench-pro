@@ -17,7 +17,7 @@
 
 A ferramenta foi criada para administradores de sistemas, consultores de infraestrutura, equipes MSP, DevOps, NOC/SOC e profissionais de segurança que precisam avaliar servidores SMTP de forma reproduzível, conservadora e auditável.
 
-A versão atual é **1.0.0-rc1** e consolida o produto como uma candidata estável à versão 1.0, com o trio SPF/DKIM/DMARC completo dentro do diagnóstico estático de DNS de e-mail. A aplicação continua standalone e também funciona como módulo integrável no **Bench Pro Core** via Integration API v1.
+A versão atual é **1.0.0** e consolida o produto como versão estável, com o trio SPF/DKIM/DMARC completo dentro do diagnóstico estático de DNS de e-mail. A aplicação continua standalone e também funciona como módulo integrável no **Bench Pro Core** via Integration API v1.
 
 ## Recursos
 
@@ -52,7 +52,7 @@ A versão atual é **1.0.0-rc1** e consolida o produto como uma candidata estáv
 
 SMTP Bench Pro **não** é cliente de e-mail e **não** é scanner agressivo.
 
-A versão 1.0.0-rc1 não executa:
+A versão 1.0.0 não executa:
 
 - autenticação real;
 - envio de e-mail;
@@ -216,7 +216,7 @@ Metadados:
 ```text
 module_id = smtp
 display_name = SMTP Bench Pro
-version = 1.0.0-rc1
+version = 1.0.0
 integration_api = 1
 vendor = WL Tech
 capabilities = benchmark, diagnostics, history, security_audit
@@ -255,8 +255,7 @@ Estado atual validado:
 
 ## Roadmap
 
-- 1.0.0-rc1: freeze funcional, QA manual, documentação final, hash SHA256 e smoke test do pacote Windows.
-- 1.0: versão estável.
+- 1.0: versão estável publicada.
 
 ## Licença
 

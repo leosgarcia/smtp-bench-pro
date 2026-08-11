@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "smtp-bench-pro"
-version = "1.0.0-rc1"
+version = "1.0.0"
 description = "Professional SMTP Benchmark & Diagnostics"
 authors = [
     { name = "WL Tech" }
