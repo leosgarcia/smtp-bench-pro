@@ -8,6 +8,9 @@ import json
 
 from smtp_bench_pro.domain.mail_dns import (
     AddressRecord,
+    DKIMDiagnosticResult,
+    DKIMSelectorResult,
+    DKIMStatus,
     DMARCDiagnosticResult,
     DMARCStatus,
     FCRDNSResult,
@@ -155,6 +158,71 @@ def deserialize_spf_result(spf_json: str) -> SPFDiagnosticResult:
     )
 
 
+
+
+# --- DKIM SERIALIZATION ---
+
+
+def serialize_dkim_result(dkim: DKIMDiagnosticResult) -> str:
+    data = {
+        "domain": dkim.domain,
+        "selectors": list(dkim.selectors),
+        "checked_at": dkim.checked_at,
+        "results": [
+            {
+                "selector": result.selector,
+                "query_name": result.query_name,
+                "status": result.status.value,
+                "raw_record": result.raw_record,
+                "key_type": result.key_type,
+                "public_key_present": result.public_key_present,
+                "public_key_bits": result.public_key_bits,
+                "flags": list(result.flags),
+                "services": list(result.services),
+                "hash_algorithms": list(result.hash_algorithms),
+                "notes": list(result.notes),
+                "validation_errors": list(result.validation_errors),
+            }
+            for result in dkim.results
+        ],
+    }
+    return serialize_to_json(data)
+
+
+def deserialize_dkim_result(dkim_json: str | dict | None, domain: str = "") -> DKIMDiagnosticResult:
+    if not dkim_json:
+        return DKIMDiagnosticResult(domain=domain, selectors=(), results=(), checked_at="")
+    data = json.loads(dkim_json) if isinstance(dkim_json, str) else dkim_json
+    results = []
+    for item in data.get("results", []):
+        try:
+            status = DKIMStatus(item.get("status") or DKIMStatus.ABSENT.value)
+        except ValueError:
+            status = DKIMStatus.INVALID_SYNTAX
+        results.append(
+            DKIMSelectorResult(
+                selector=str(item.get("selector") or ""),
+                query_name=str(item.get("query_name") or ""),
+                status=status,
+                raw_record=item.get("raw_record"),
+                key_type=item.get("key_type"),
+                public_key_present=bool(item.get("public_key_present", False)),
+                public_key_bits=item.get("public_key_bits"),
+                flags=tuple(item.get("flags") or ()),
+                services=tuple(item.get("services") or ()),
+                hash_algorithms=tuple(item.get("hash_algorithms") or ()),
+                notes=tuple(item.get("notes") or ()),
+                validation_errors=tuple(item.get("validation_errors") or ()),
+            )
+        )
+    return DKIMDiagnosticResult(
+        domain=str(data.get("domain") or domain),
+        selectors=tuple(data.get("selectors") or ()),
+        results=tuple(results),
+        checked_at=str(data.get("checked_at") or ""),
+    )
+
+
 # --- DMARC SERIALIZATION ---
 
 
@@ -195,13 +263,27 @@ def deserialize_dmarc_result(dmarc_json: str) -> DMARCDiagnosticResult:
 # --- IDENTITY SUMMARY SERIALIZATION ---
 
 
-def serialize_identity_summary(summary: MailIdentitySummary) -> str:
-    return serialize_to_json(asdict(summary))
+def serialize_identity_summary(summary: MailIdentitySummary, dkim: DKIMDiagnosticResult | None = None) -> str:
+    data = asdict(summary)
+    if dkim is None:
+        return serialize_to_json(data)
+    return serialize_to_json({"summary": data, "dkim": json.loads(serialize_dkim_result(dkim))})
 
 
 def deserialize_identity_summary(summary_json: str) -> MailIdentitySummary:
     data = json.loads(summary_json)
+    if isinstance(data, dict) and "summary" in data:
+        data = data.get("summary") or {}
+    data.setdefault("dkim_valid_selectors", 0)
+    data.setdefault("dkim_total_selectors", 0)
     return MailIdentitySummary(**data)
+
+
+def deserialize_dkim_from_identity_summary(summary_json: str, domain: str = "") -> DKIMDiagnosticResult:
+    data = json.loads(summary_json)
+    if isinstance(data, dict) and isinstance(data.get("dkim"), dict):
+        return deserialize_dkim_result(data["dkim"], domain=domain)
+    return DKIMDiagnosticResult(domain=domain, selectors=(), results=(), checked_at="")
 
 
 # --- FINDINGS SERIALIZATION ---

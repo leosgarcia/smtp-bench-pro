@@ -7,6 +7,9 @@ from pathlib import Path
 
 VENDOR_NAME = "WL Tech"
 APP_NAME = "SMTP Bench Pro"
+APP_WEBSITE = "https://wltech.com.br"
+APP_REPOSITORY = "https://github.com/leosgarcia/smtp-bench-pro"
+APP_TAGLINE = "Benchmark, diagnóstico e auditoria profissional de servidores SMTP."
 
 
 def app_data_dir() -> Path:

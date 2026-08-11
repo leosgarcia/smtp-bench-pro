@@ -12,6 +12,7 @@ from smtp_bench_pro.domain.mail_dns import MailDNSRunSnapshot
 from smtp_bench_pro.domain.results import BenchmarkRunResult, SMTPProbeResult
 from smtp_bench_pro.persistence.database import SMTPDatabase
 from smtp_bench_pro.persistence.mail_dns_serializer import (
+    deserialize_dkim_from_identity_summary,
     deserialize_dmarc_result,
     deserialize_identity_summary,
     deserialize_mail_dns_findings,
@@ -133,7 +134,7 @@ class SMTPBenchmarkRepository:
         mx_json, ptr_json = serialize_routing_result(snapshot.routing)
         spf_json = serialize_spf_result(snapshot.spf)
         dmarc_json = serialize_dmarc_result(snapshot.dmarc)
-        summary_json = serialize_identity_summary(snapshot.identity_summary)
+        summary_json = serialize_identity_summary(snapshot.identity_summary, snapshot.dkim)
         findings_json = serialize_mail_dns_findings(snapshot.findings)
 
         with self.database.connect() as connection:
@@ -191,6 +192,7 @@ class SMTPBenchmarkRepository:
                 spf = deserialize_spf_result(row["spf_json"])
                 dmarc = deserialize_dmarc_result(row["dmarc_json"])
                 summary = deserialize_identity_summary(row["identity_summary_json"])
+                dkim = deserialize_dkim_from_identity_summary(row["identity_summary_json"], domain=row["domain"])
                 findings = deserialize_mail_dns_findings(row["findings_json"])
 
                 return MailDNSRunSnapshot(
@@ -201,6 +203,7 @@ class SMTPBenchmarkRepository:
                     spf=spf,
                     dmarc=dmarc,
                     identity_summary=summary,
+                    dkim=dkim,
                     findings=findings,
                     created_at=row["created_at"],
                 )

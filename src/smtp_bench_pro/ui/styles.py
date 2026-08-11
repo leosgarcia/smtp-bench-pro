@@ -26,7 +26,7 @@ QGroupBox::title {
     left: 10px;
     padding: 0 4px;
 }
-QLineEdit, QSpinBox, QDoubleSpinBox, QTableWidget, QTextEdit, QTabWidget::pane {
+QLineEdit, QSpinBox, QDoubleSpinBox, QTableWidget, QTextEdit, QPlainTextEdit, QTabWidget::pane {
     background: #171A21;
     color: #E8EAED;
     border: 1px solid #2B323D;
@@ -41,17 +41,33 @@ QHeaderView::section {
     padding: 6px;
 }
 QPushButton {
-    background: #2563EB;
-    color: white;
-    border: 0;
+    background: #303846;
+    color: #F8FAFC;
+    border: 1px solid #3A4556;
     border-radius: 4px;
     padding: 7px 12px;
     font-weight: 600;
 }
-QPushButton:hover { background: #1D4ED8; }
+QPushButton:hover { background: #3A4556; }
 QPushButton:disabled { background: #394150; color: #9AA4B2; }
+QPushButton#primaryButton {
+    background: #2563EB;
+    border: 1px solid #3B82F6;
+    color: white;
+}
+QPushButton#primaryButton:hover { background: #1D4ED8; }
 QPushButton#secondaryButton { background: #303846; }
 QPushButton#secondaryButton:hover { background: #3A4556; }
+QLabel#emptyStateTitle { font-size: 12pt; font-weight: 700; color: #F8FAFC; }
+QLabel#emptyStateBody { color: #B8C0CC; }
+QLabel#subtleLabel { color: #B8C0CC; }
+QGroupBox#mailDnsCard {
+    margin-top: 8px;
+    padding: 8px;
+}
+QGroupBox#mailDnsCard::title { font-weight: 600; }
+QLabel#mailDnsCardStatus { font-weight: 700; color: #F8FAFC; }
+QLabel#mailDnsCardDetails { color: #B8C0CC; }
 QProgressBar {
     background: #171A21;
     color: #E8EAED;

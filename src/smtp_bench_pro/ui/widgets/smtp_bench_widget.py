@@ -57,7 +57,6 @@ from smtp_bench_pro.ui.security_presenter import (
 )
 from smtp_bench_pro.ui.widgets.connection_panel import ConnectionPanel
 from smtp_bench_pro.ui.widgets.results_table import ResultsTable
-from smtp_bench_pro.version import __version__
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +75,7 @@ class SMTPBenchWidget(QWidget):
         repository: SMTPBenchmarkRepository | None = None,
     ):
         super().__init__(parent)
+        self._include_about = include_about
         self.service = SMTPBenchmarkService()
         self.diagnostics_service = SMTPDiagnosticsService()
         self.engine = engine or SMTPBenchmarkEngine()
@@ -122,14 +122,23 @@ class SMTPBenchWidget(QWidget):
             "Testes estendidos podem gerar eventos nos logs de segurança do servidor SMTP."
         )
         self.extended_warning.setWordWrap(True)
+        self.profile_summary = QLabel()
+        self.profile_summary.setObjectName("subtleLabel")
+        self.profile_summary.setWordWrap(True)
         self.diagnostics_table = QTableWidget(0, 7)
         self.diagnostics_table.setHorizontalHeaderLabels(
             ["Porta", "Role", "STARTTLS", "AUTH antes TLS", "AUTH após TLS", "TLS", "Certificado"]
         )
         self.capabilities_table = QTableWidget(0, 5)
         self.capabilities_table.setHorizontalHeaderLabels(
-            ["Porta", "Capability", "Antes TLS", "Após TLS", "Parametros"]
+            ["Porta", "Capability", "Antes TLS", "Após TLS", "Parâmetros"]
         )
+        self.security_empty_state = QLabel(
+            "Execute um diagnóstico para visualizar comandos testados, findings e recomendações."
+        )
+        self.security_empty_state.setObjectName("emptyStateTitle")
+        self.security_empty_state.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.security_empty_state.setWordWrap(True)
         self.security_summary = QLabel("Nenhum diagnóstico de segurança disponível.")
         self.security_summary.setWordWrap(True)
         self.command_table = QTableWidget(0, 5)
@@ -138,19 +147,21 @@ class SMTPBenchWidget(QWidget):
         self.command_details.setReadOnly(True)
         self.finding_counters = QLabel("Critical: 0 | High: 0 | Medium: 0 | Low: 0 | Info: 0")
         self.findings_table = QTableWidget(0, 5)
-        self.findings_table.setHorizontalHeaderLabels(["Severidade", "Categoria", "Achado", "Porta", "Evidencia"])
+        self.findings_table.setHorizontalHeaderLabels(["Severidade", "Categoria", "Achado", "Porta", "Evidência"])
         self.finding_details = QTextEdit()
         self.finding_details.setReadOnly(True)
         self.compare_history_button = QPushButton("Comparar Execuções")
+        self.compare_history_button.setObjectName("secondaryButton")
         self.compare_history_button.setEnabled(False)
         self.export_history_button = QPushButton("Exportar Execução")
+        self.export_history_button.setObjectName("secondaryButton")
         self.export_history_button.setEnabled(False)
         self.compare_history_button.setEnabled(False)
         self.export_history_menu = self._build_history_export_menu()
         self.export_history_button.setMenu(self.export_history_menu)
-        self.history_table = QTableWidget(0, 7)
+        self.history_table = QTableWidget(0, 8)
         self.history_table.setHorizontalHeaderLabels(
-            ["ID", "Data/Hora", "Servidor", "Portas", "Perfil", "Resultado", "Findings"]
+            ["ID", "Data/Hora", "Tipo", "Servidor", "Portas", "Perfil", "Resultado", "Findings"]
         )
         self.history_header = QLabel("Selecione uma execução para visualizar os detalhes.")
         self.history_header.setWordWrap(True)
@@ -171,7 +182,7 @@ class SMTPBenchWidget(QWidget):
         self.history_command_details.setReadOnly(True)
         self.history_findings_table = QTableWidget(0, 5)
         self.history_findings_table.setHorizontalHeaderLabels(
-            ["Severidade", "Categoria", "Achado", "Porta", "Evidencia"]
+            ["Severidade", "Categoria", "Achado", "Porta", "Evidência"]
         )
         self.history_finding_details = QTextEdit()
         self.history_finding_details.setReadOnly(True)
@@ -187,11 +198,14 @@ class SMTPBenchWidget(QWidget):
         self.mail_dns_tab = MailDNSTabWidget(repository=self.repository)
         self.tab_widget.addTab(self.mail_dns_tab, "DNS de E-mail")
         if include_about:
-            about = QLabel(f"SMTP Bench Pro\nVersion {__version__}\nWL Tech\n(c) 2026 WL Tech")
-            about.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            self.tab_widget.addTab(about, "Sobre")
+            from smtp_bench_pro.ui.widgets.about import AboutWidget
+
+            self.about_view = AboutWidget()
+            self.tab_widget.addTab(self.about_view, "Sobre")
 
         layout = QVBoxLayout(self)
+        if not self._include_about:
+            layout.setContentsMargins(6, 6, 6, 6)
         layout.addWidget(self.tab_widget)
 
         self.connection_panel.run_requested.connect(self.start_benchmark)
@@ -219,7 +233,7 @@ class SMTPBenchWidget(QWidget):
         try:
             targets = self.service.build_targets(request)
         except ValueError as exc:
-            QMessageBox.warning(self, "Entrada invalida", str(exc))
+            QMessageBox.warning(self, "Entrada inválida", str(exc))
             return
 
         logger.info("Starting SMTP benchmark for %s on %d port(s)", request.hostname, len(targets))
@@ -273,9 +287,29 @@ class SMTPBenchWidget(QWidget):
             check.setEnabled(enabled)
             check.blockSignals(False)
         self._update_extended_warning()
+        self._update_profile_summary()
 
     def _on_manual_command_changed(self) -> None:
         self._update_extended_warning()
+        self._update_profile_summary()
+
+    def _update_profile_summary(self) -> None:
+        options = self._current_diagnostics_options()
+        executed = ["banner", "EHLO", "STARTTLS", "TLS", "certificado", "AUTH discovery"]
+        if options.test_noop:
+            executed.append("NOOP")
+        optional = []
+        for command, enabled in (
+            ("HELP", options.test_help),
+            ("VRFY", options.test_vrfy),
+            ("EXPN", options.test_expn),
+        ):
+            optional.append(f"{command}: {'executa' if enabled else 'não executa'}")
+        blocked = "Não executa: AUTH real, MAIL FROM, RCPT TO, DATA ou envio de e-mail."
+        self.profile_summary.setText(
+            f"Perfil ativo: {options.profile.value.upper()} | Executa: {', '.join(executed)} | "
+            f"Opcionais: {'; '.join(optional)} | {blocked}"
+        )
 
     def _update_extended_warning(self) -> None:
         options = self._current_diagnostics_options()
@@ -305,6 +339,7 @@ class SMTPBenchWidget(QWidget):
             manual_layout.addWidget(check)
         manual_layout.addStretch(1)
         profile_layout.addWidget(manual_row)
+        profile_layout.addWidget(self.profile_summary)
         profile_layout.addWidget(self.extended_warning)
         layout.addWidget(profile_group)
         layout.addWidget(QLabel("Resumo de configuração SMTP/TLS"))
@@ -314,19 +349,35 @@ class SMTPBenchWidget(QWidget):
 
     def _build_security_tab(self) -> None:
         layout = QVBoxLayout(self.security_tab)
+        layout.addWidget(self.security_empty_state, 1)
         summary_group = QGroupBox("Resumo do Diagnóstico")
         summary_layout = QVBoxLayout(summary_group)
         summary_layout.addWidget(self.security_summary)
         summary_layout.addWidget(self.finding_counters)
         layout.addWidget(summary_group)
-        layout.addWidget(QLabel("Comandos Testados"))
+        self.security_commands_label = QLabel("Comandos Testados")
+        self.security_command_details_label = QLabel("Detalhes do comando")
+        self.security_findings_label = QLabel("Findings")
+        self.security_finding_details_label = QLabel("Detalhes do achado")
+        layout.addWidget(self.security_commands_label)
         layout.addWidget(self.command_table, 1)
-        layout.addWidget(QLabel("Detalhes do comando"))
+        layout.addWidget(self.security_command_details_label)
         layout.addWidget(self.command_details, 1)
-        layout.addWidget(QLabel("Findings"))
+        layout.addWidget(self.security_findings_label)
         layout.addWidget(self.findings_table, 2)
-        layout.addWidget(QLabel("Detalhes do achado"))
+        layout.addWidget(self.security_finding_details_label)
         layout.addWidget(self.finding_details, 1)
+        self._security_content_widgets = [
+            summary_group,
+            self.security_commands_label,
+            self.command_table,
+            self.security_command_details_label,
+            self.command_details,
+            self.security_findings_label,
+            self.findings_table,
+            self.security_finding_details_label,
+            self.finding_details,
+        ]
 
     def _build_history_tab(self) -> None:
         layout = QVBoxLayout(self.history_tab)
@@ -386,7 +437,7 @@ class SMTPBenchWidget(QWidget):
             self._render_security(self._diagnostics, self._findings)
             successes = sum(1 for result in self._pending_results if result.success)
             finding_text = f" | {len(self._findings)} achado(s)"
-            self.summary_label.setText(f"Concluido: {successes}/{len(self._pending_results)} sucesso(s){finding_text}")
+            self.summary_label.setText(f"Concluído: {successes}/{len(self._pending_results)} sucesso(s){finding_text}")
             if self._current_request is not None and self._pending_results:
                 try:
                     self.repository.save_run(
@@ -446,6 +497,13 @@ class SMTPBenchWidget(QWidget):
         self.finding_counters.setText("Critical: 0 | High: 0 | Medium: 0 | Low: 0 | Info: 0")
         self.command_details.setPlainText("Nenhum diagnóstico de comando disponível.")
         self.finding_details.setPlainText("Nenhum diagnóstico de segurança disponível.")
+        self._set_security_content_visible(False)
+
+    def _set_security_content_visible(self, visible: bool) -> None:
+        if hasattr(self, "security_empty_state"):
+            self.security_empty_state.setVisible(not visible)
+        for widget in getattr(self, "_security_content_widgets", []):
+            widget.setVisible(visible)
 
     def _render_diagnostics(self, reports: list[SMTPDiagnosticReport]) -> None:
         self.diagnostics_table.setRowCount(0)
@@ -468,7 +526,7 @@ class SMTPBenchWidget(QWidget):
                     " | ".join(params) or "-",
                 ]
                 for column, value in enumerate(values):
-                    self.capabilities_table.setItem(row, column, QTableWidgetItem(value))
+                    self._set_table_item(self.capabilities_table, row, column, value)
         self.diagnostics_table.resizeColumnsToContents()
         self.capabilities_table.resizeColumnsToContents()
 
@@ -487,9 +545,10 @@ class SMTPBenchWidget(QWidget):
             self._certificate_text(cert),
         ]
         for column, value in enumerate(values):
-            self.diagnostics_table.setItem(row, column, QTableWidgetItem(value))
+            self._set_table_item(self.diagnostics_table, row, column, value)
 
     def _render_security(self, reports: list[SMTPDiagnosticReport], findings: list[SecurityFinding]) -> None:
+        self._set_security_content_visible(bool(reports))
         self._render_security_summary(reports, findings)
         self._render_command_diagnostics(reports, findings)
         self._render_findings(findings)
@@ -549,6 +608,8 @@ class SMTPBenchWidget(QWidget):
                     item = QTableWidgetItem(value)
                     if column == 0 and presentation.command in ("NOOP", "HELP", "VRFY", "EXPN"):
                         item.setToolTip(COMMAND_TOOLTIPS.get(presentation.command, ""))
+                    if len(value) > 32:
+                        item.setToolTip(value)
                     self.command_table.setItem(row, column, item)
                 self._command_rows.append((result, finding))
         self.command_table.resizeColumnsToContents()
@@ -611,10 +672,17 @@ class SMTPBenchWidget(QWidget):
                 finding.evidence,
             ]
             for column, value in enumerate(values):
-                self.findings_table.setItem(row, column, QTableWidgetItem(value))
+                self._set_table_item(self.findings_table, row, column, value)
         self.findings_table.resizeColumnsToContents()
         self.findings_table.setCurrentCell(0, 0)
         self._update_finding_details_from_selection()
+
+    def _set_table_item(self, table: QTableWidget, row: int, column: int, value: object) -> None:
+        text = str(value)
+        item = QTableWidgetItem(text)
+        if len(text) > 32:
+            item.setToolTip(text)
+        table.setItem(row, column, item)
 
     def _certificate_text(self, cert) -> str:
         if cert is None:
@@ -689,7 +757,9 @@ class SMTPBenchWidget(QWidget):
                 item = QTableWidgetItem(value)
                 if column == 0:
                     item.setData(Qt.ItemDataRole.UserRole, int(run["id"]))
-                table.setItem(row, column, item)
+                if len(value) > 32:
+                    item.setToolTip(value)
+            table.setItem(row, column, item)
         table.resizeColumnsToContents()
         layout.addWidget(table, 1)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
@@ -776,6 +846,7 @@ class SMTPBenchWidget(QWidget):
             values = [
                 f"#{run['id']}",
                 str(run.get("created_at") or "-"),
+                self._history_run_type(run),
                 str(run.get("hostname") or "-"),
                 str(run.get("ports") or "-"),
                 self._profile_display_from_value(run.get("diagnostics_profile")),
@@ -788,8 +859,27 @@ class SMTPBenchWidget(QWidget):
                     item.setData(Qt.ItemDataRole.UserRole, int(run["id"]))
                 self.history_table.setItem(row, column, item)
         self.history_table.resizeColumnsToContents()
+        self.history_table.setColumnWidth(2, 130)
         self.history_header.setText("Selecione uma execução para visualizar os detalhes.")
         self._render_empty_history_details()
+
+    def _history_run_type(self, run: dict[str, object]) -> str:
+        run_id = run.get("id")
+        has_snapshot = False
+        if run_id is not None and hasattr(self.repository, "has_mail_dns_snapshot"):
+            try:
+                has_snapshot = bool(self.repository.has_mail_dns_snapshot(int(run_id)))
+            except Exception:
+                logger.exception("Failed to check Mail DNS snapshot for run %s", run_id)
+        try:
+            iterations = int(run.get("iterations") or 0)
+        except (TypeError, ValueError):
+            iterations = 0
+        if has_snapshot and iterations <= 0:
+            return "DNS de E-mail"
+        if has_snapshot:
+            return "SMTP + DNS de E-mail"
+        return "SMTP"
 
     def _on_history_selection_changed(self) -> None:
         selected = self.history_table.selectedItems()
@@ -1048,6 +1138,8 @@ class SMTPBenchWidget(QWidget):
                 item.setToolTip(COMMAND_TOOLTIPS.get(presentation.command, ""))
             if column == 0 and finding is not None:
                 item.setData(Qt.ItemDataRole.UserRole, finding.id)
+            if len(value) > 32:
+                item.setToolTip(value)
             table.setItem(row, column, item)
 
     def _render_command_detail(
@@ -1095,7 +1187,7 @@ class SMTPBenchWidget(QWidget):
             finding.evidence,
         ]
         for column, value in enumerate(values):
-            table.setItem(row, column, QTableWidgetItem(value))
+            self._set_table_item(table, row, column, value)
 
     def _render_finding_detail(self, target: QTextEdit, finding: SecurityFinding) -> None:
         target.setPlainText(

@@ -24,7 +24,7 @@ class ConnectionPanel(QGroupBox):
     cancel_requested = Signal()
 
     def __init__(self, parent: QWidget | None = None):
-        super().__init__("Conexao SMTP", parent)
+        super().__init__("Conexão SMTP", parent)
         self.host_input = QLineEdit()
         self.host_input.setPlaceholderText("mail.example.com")
         self.iterations_input = QSpinBox()
@@ -48,6 +48,7 @@ class ConnectionPanel(QGroupBox):
         ports_layout.addStretch(1)
 
         self.run_button = QPushButton("Rodar Benchmark")
+        self.run_button.setObjectName("primaryButton")
         self.cancel_button = QPushButton("Cancelar")
         self.cancel_button.setObjectName("secondaryButton")
         self.cancel_button.setEnabled(False)
@@ -62,7 +63,7 @@ class ConnectionPanel(QGroupBox):
         form = QFormLayout(self)
         form.addRow("Servidor", self.host_input)
         form.addRow("Portas", ports_widget)
-        form.addRow("Execucoes", self.iterations_input)
+        form.addRow("Execuções", self.iterations_input)
         form.addRow("Timeout", self.timeout_input)
         form.addRow(QLabel(""), buttons)
 

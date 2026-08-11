@@ -10,11 +10,13 @@ class FakeHistoryRepository:
         self.details = details
         self.details_calls: list[int] = []
         self.security_context_calls: list[int] = []
+        self.mail_dns_snapshots: set[int] = set()
         self.summaries = [] if details is None else [
             {
                 "id": details.run["id"],
                 "created_at": details.run["created_at"],
                 "hostname": details.run["hostname"],
+                "iterations": details.run.get("iterations", 5),
                 "ports": "587",
                 "diagnostics_profile": details.run["diagnostics_profile"],
                 "result_status": "Concluído",
@@ -33,6 +35,9 @@ class FakeHistoryRepository:
     def get_run_details(self, run_id: int):
         self.details_calls.append(run_id)
         return self.details if self.details and self.details.run["id"] == run_id else None
+
+    def has_mail_dns_snapshot(self, run_id: int) -> bool:
+        return run_id in self.mail_dns_snapshots
 
 
 def _manual_details(findings=None, command_diagnostics=None, tls=TLS_DEFAULT) -> SMTPRunDetails:
@@ -443,3 +448,65 @@ def test_comparison_dialog_export_cancel_and_error(qtbot, tmp_path, monkeypatch)
     dialog._export_comparison("json")
 
     assert warnings
+
+
+def test_history_master_list_shows_smtp_type(qtbot) -> None:
+    repository = FakeHistoryRepository(_manual_details())
+    widget = SMTPBenchWidget(include_about=False, repository=repository)
+    qtbot.addWidget(widget)
+
+    assert widget.history_table.horizontalHeaderItem(2).text() == "Tipo"
+    assert widget.history_table.item(0, 2).text() == "SMTP"
+
+
+def test_history_master_list_shows_mail_dns_standalone_type(qtbot) -> None:
+    details = _manual_details()
+    details.run["iterations"] = 0
+    repository = FakeHistoryRepository(details)
+    repository.summaries[0]["iterations"] = 0
+    repository.mail_dns_snapshots.add(18)
+    widget = SMTPBenchWidget(include_about=False, repository=repository)
+    qtbot.addWidget(widget)
+
+    assert widget.history_table.item(0, 2).text() == "DNS de E-mail"
+
+
+def test_history_master_list_shows_smtp_with_mail_dns_type(qtbot) -> None:
+    repository = FakeHistoryRepository(_manual_details())
+    repository.mail_dns_snapshots.add(18)
+    widget = SMTPBenchWidget(include_about=False, repository=repository)
+    qtbot.addWidget(widget)
+
+    assert widget.history_table.item(0, 2).text() == "SMTP + DNS de E-mail"
+
+
+def test_security_empty_state_is_consolidated(qtbot) -> None:
+    repository = FakeHistoryRepository()
+    widget = SMTPBenchWidget(include_about=False, repository=repository)
+    qtbot.addWidget(widget)
+
+    assert widget.security_empty_state.isHidden() is False
+    assert "Execute um diagnóstico" in widget.security_empty_state.text()
+    assert widget.command_table.isHidden() is True
+    assert widget.findings_table.isHidden() is True
+
+
+def test_profile_summary_updates_for_manual_options(qtbot) -> None:
+    widget = SMTPBenchWidget(include_about=False, repository=FakeHistoryRepository())
+    qtbot.addWidget(widget)
+    widget.profile_combo.setCurrentIndex(2)
+    widget.vrfy_check.setChecked(True)
+
+    assert "Perfil ativo: MANUAL" in widget.profile_summary.text()
+    assert "VRFY: executa" in widget.profile_summary.text()
+    assert "AUTH real" in widget.profile_summary.text()
+
+
+def test_primary_and_secondary_button_object_names(qtbot) -> None:
+    widget = SMTPBenchWidget(include_about=False, repository=FakeHistoryRepository())
+    qtbot.addWidget(widget)
+
+    assert widget.connection_panel.run_button.objectName() == "primaryButton"
+    assert widget.connection_panel.cancel_button.objectName() == "secondaryButton"
+    assert widget.mail_dns_tab.run_button.objectName() == "primaryButton"
+    assert widget.mail_dns_tab.cancel_button.objectName() == "secondaryButton"

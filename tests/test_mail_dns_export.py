@@ -8,6 +8,9 @@ import sys
 
 from smtp_bench_pro.domain.mail_dns import (
     AddressRecord,
+    DKIMDiagnosticResult,
+    DKIMSelectorResult,
+    DKIMStatus,
     DMARCDiagnosticResult,
     DMARCStatus,
     FCRDNSResult,
@@ -99,6 +102,26 @@ def _sample_snapshot(domain: str = "example.com") -> MailDNSRunSnapshot:
         organizational_domain=domain,
     )
 
+
+    dkim = DKIMDiagnosticResult(
+        domain=domain,
+        selectors=("default",),
+        results=(
+            DKIMSelectorResult(
+                selector="default",
+                query_name=f"default._domainkey.{domain}",
+                status=DKIMStatus.VALID,
+                raw_record="v=DKIM1; k=ed25519; p=MTIz; s=email; h=sha256",
+                key_type="ed25519",
+                public_key_present=True,
+                public_key_bits=24,
+                services=("email",),
+                hash_algorithms=("sha256",),
+            ),
+        ),
+        checked_at="2026-08-08T22:00:00Z",
+    )
+
     summary = MailIdentitySummary(
         domain=domain,
         organizational_domain=domain,
@@ -108,6 +131,8 @@ def _sample_snapshot(domain: str = "example.com") -> MailDNSRunSnapshot:
         dmarc_policy="reject",
         fcrdns_aligned_ips=1,
         fcrdns_total_ips=1,
+        dkim_valid_selectors=1,
+        dkim_total_selectors=1,
     )
 
     finding = MailDNSFinding(
@@ -128,6 +153,7 @@ def _sample_snapshot(domain: str = "example.com") -> MailDNSRunSnapshot:
         spf=spf,
         dmarc=dmarc,
         identity_summary=summary,
+        dkim=dkim,
         findings=(finding,),
         created_at="2026-08-08T22:00:00Z",
     )
@@ -145,6 +171,8 @@ def test_json_export_with_mail_dns_snapshot() -> None:
     assert mail_dns["domain"] == "example.com"
     assert mail_dns["spf"]["status"] == "VALID_SINGLE"
     assert mail_dns["dmarc"]["policy"] == "reject"
+    assert mail_dns["dkim"]["results"][0]["selector"] == "default"
+    assert mail_dns["dkim"]["results"][0]["status"] == "VALID"
     assert mail_dns["findings"][0]["id"] == "MAILDNS-DMARC-002"
 
     # Term order preservation
@@ -172,6 +200,8 @@ def test_html_export_with_mail_dns_snapshot() -> None:
     assert "Resumo de Identidade" in html_out
     assert "example.com" in html_out
     assert "v=spf1 include:_spf.example.com -all" in html_out
+    assert "Diagnóstico DKIM" in html_out
+    assert "default._domainkey.example.com" in html_out
     assert "MAILDNS-DMARC-002" in html_out
 
 
@@ -186,6 +216,20 @@ def test_html_export_security_xss_escaping() -> None:
     routing = MailRoutingDiagnosticResult(xss_domain, "2026-08-08T22:00:00Z", mx_diag, PTRDiagnosticResult())
     spf = SPFDiagnosticResult(status=SPFStatus.VALID_SINGLE, raw_record="v=spf1 <script> -all")
     dmarc = DMARCDiagnosticResult(status=DMARCStatus.VALID, raw_record="v=DMARC1; p=reject")
+    dkim = DKIMDiagnosticResult(
+        domain=xss_domain,
+        selectors=("xss",),
+        results=(
+            DKIMSelectorResult(
+                selector="xss",
+                query_name="xss._domainkey.example.com",
+                status=DKIMStatus.INVALID_SYNTAX,
+                raw_record="v=DKIM1; p=<script>alert(1)</script>",
+                validation_errors=("<script>alert(1)</script>",),
+            ),
+        ),
+        checked_at="2026-08-08T22:00:00Z",
+    )
     summary = MailIdentitySummary(xss_domain, xss_domain, 1, False, "VALID_SINGLE", "reject", 0, 0)
 
     finding = MailDNSFinding(
@@ -198,7 +242,18 @@ def test_html_export_security_xss_escaping() -> None:
         recommendation=xss_rec,
     )
 
-    snapshot = MailDNSRunSnapshot(1, 42, xss_domain, routing, spf, dmarc, summary, (finding,), "2026-08-08T22:00:00Z")
+    snapshot = MailDNSRunSnapshot(
+        id=1,
+        run_id=42,
+        domain=xss_domain,
+        routing=routing,
+        spf=spf,
+        dmarc=dmarc,
+        identity_summary=summary,
+        findings=(finding,),
+        created_at="2026-08-08T22:00:00Z",
+        dkim=dkim,
+    )
     payload = serialize_run_details(_sample_run_details(), mail_dns_snapshot=snapshot)
     html_out = render_html(payload)
 
@@ -206,6 +261,7 @@ def test_html_export_security_xss_escaping() -> None:
     assert escape(xss_domain) in html_out
     assert escape(xss_evidence) in html_out
     assert escape(xss_rec) in html_out
+    assert escape("v=DKIM1; p=<script>alert(1)</script>") in html_out
 
     # Must NOT contain raw unescaped script or img tags
     assert "<script>alert(1)</script>" not in html_out

@@ -5,12 +5,14 @@ from __future__ import annotations
 import logging
 from PySide6.QtCore import Qt, QThreadPool
 from PySide6.QtWidgets import (
+    QApplication,
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
     QHeaderView,
     QLabel,
     QLineEdit,
+    QPlainTextEdit,
     QProgressBar,
     QPushButton,
     QSplitter,
@@ -75,21 +77,29 @@ class MailDNSTabWidget(QWidget):
         self.domain_input.returnPressed.connect(self._start_diagnostics)
 
         self.run_button = QPushButton("Executar Diagnóstico")
+        self.run_button.setObjectName("primaryButton")
         self.run_button.clicked.connect(self._start_diagnostics)
 
         self.cancel_button = QPushButton("Cancelar")
+        self.cancel_button.setObjectName("secondaryButton")
         self.cancel_button.setEnabled(False)
         self.cancel_button.clicked.connect(self._cancel_diagnostics)
 
+        self.dkim_selectors_input = QLineEdit()
+        self.dkim_selectors_input.setPlaceholderText("Selectors DKIM: default, google, selector1")
+        self.dkim_selectors_input.setToolTip("Informe selectors DKIM manualmente, separados por vírgula. Opcional.")
+
         input_layout.addWidget(QLabel("Domínio:"))
         input_layout.addWidget(self.domain_input, 1)
+        input_layout.addWidget(QLabel("DKIM:"))
+        input_layout.addWidget(self.dkim_selectors_input, 1)
         input_layout.addWidget(self.run_button)
         input_layout.addWidget(self.cancel_button)
         layout.addWidget(input_box)
 
         # 2. Progress & Status Bar
         self.progress_bar = QProgressBar()
-        self.progress_bar.setRange(0, 5)
+        self.progress_bar.setRange(0, 6)
         self.progress_bar.setValue(0)
         self.progress_bar.setVisible(False)
         layout.addWidget(self.progress_bar)
@@ -127,12 +137,17 @@ class MailDNSTabWidget(QWidget):
         self._setup_spf_tab(self.tab_spf)
         self.detail_tabs.addTab(self.tab_spf, "SPF")
 
-        # Tab 3: DMARC
+        # Tab 3: DKIM
+        self.tab_dkim = QWidget()
+        self._setup_dkim_tab(self.tab_dkim)
+        self.detail_tabs.addTab(self.tab_dkim, "DKIM")
+
+        # Tab 4: DMARC
         self.tab_dmarc = QWidget()
         self._setup_dmarc_tab(self.tab_dmarc)
         self.detail_tabs.addTab(self.tab_dmarc, "DMARC")
 
-        # Tab 4: Security Findings
+        # Tab 5: Security Findings
         self.tab_findings = QWidget()
         self._setup_findings_tab(self.tab_findings)
         self.detail_tabs.addTab(self.tab_findings, "Achados de Segurança")
@@ -141,17 +156,53 @@ class MailDNSTabWidget(QWidget):
 
     def _create_card(self, title: str, status: str, details: str) -> QGroupBox:
         box = QGroupBox(title)
+        box.setObjectName("mailDnsCard")
+        box.setMaximumHeight(92)
         box_layout = QVBoxLayout(box)
-        box_layout.setContentsMargins(8, 8, 8, 8)
+        box_layout.setContentsMargins(6, 6, 6, 6)
+        box_layout.setSpacing(3)
         lbl_status = QLabel(status)
-        lbl_status.setStyleSheet("font-weight: bold;")
+        lbl_status.setObjectName("mailDnsCardStatus")
         lbl_details = QLabel(details)
+        lbl_details.setObjectName("mailDnsCardDetails")
         lbl_details.setWordWrap(True)
         box_layout.addWidget(lbl_status)
         box_layout.addWidget(lbl_details)
         box.setProperty("lbl_status", lbl_status)
         box.setProperty("lbl_details", lbl_details)
         return box
+
+
+    def _create_raw_record_view(self) -> QPlainTextEdit:
+        view = QPlainTextEdit()
+        view.setReadOnly(True)
+        view.setMaximumHeight(74)
+        view.setLineWrapMode(QPlainTextEdit.LineWrapMode.WidgetWidth)
+        view.setPlainText("-")
+        return view
+
+    def _raw_record_row(self, editor: QPlainTextEdit, button: QPushButton) -> QWidget:
+        row = QWidget()
+        layout = QHBoxLayout(row)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(6)
+        layout.addWidget(editor, 1)
+        layout.addWidget(button)
+        return row
+
+    def _copy_raw_record(self, editor: QPlainTextEdit) -> None:
+        QApplication.clipboard().setText(editor.toPlainText())
+        self.status_label.setText("Registro copiado para a área de transferência.")
+
+    def _set_table_item(self, table: QTableWidget, row: int, column: int, value: object) -> None:
+        text = str(value)
+        item = QTableWidgetItem(text)
+        if len(text) > 32:
+            item.setToolTip(text)
+        table.setItem(row, column, item)
+
+    def _card_status(self, state: str, label: str) -> str:
+        return f"{state}: {label}"
 
     def _setup_routing_tab(self, widget: QWidget) -> None:
         layout = QVBoxLayout(widget)
@@ -160,6 +211,7 @@ class MailDNSTabWidget(QWidget):
         self.table_mx = QTableWidget(0, 5)
         self.table_mx.setHorizontalHeaderLabels(["Prioridade", "Exchange", "IPv4", "IPv6", "CNAME?"])
         self.table_mx.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.table_mx.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         layout.addWidget(self.table_mx)
 
         # PTR Table
@@ -167,20 +219,23 @@ class MailDNSTabWidget(QWidget):
         self.table_ptr = QTableWidget(0, 4)
         self.table_ptr.setHorizontalHeaderLabels(["Endereço IP", "Hostname PTR", "Forward IPs", "FCRDNS Status"])
         self.table_ptr.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.table_ptr.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         layout.addWidget(self.table_ptr)
 
     def _setup_spf_tab(self, widget: QWidget) -> None:
         layout = QVBoxLayout(widget)
         form = QFormLayout()
 
-        self.lbl_spf_raw = QLabel("-")
-        self.lbl_spf_raw.setWordWrap(True)
+        self.lbl_spf_raw = self._create_raw_record_view()
+        self.btn_copy_spf = QPushButton("Copiar")
+        self.btn_copy_spf.setObjectName("secondaryButton")
+        self.btn_copy_spf.clicked.connect(lambda: self._copy_raw_record(self.lbl_spf_raw))
         self.lbl_spf_status = QLabel("-")
         self.lbl_spf_lookups = QLabel("-")
         self.lbl_spf_all = QLabel("-")
         self.lbl_spf_ptr = QLabel("-")
 
-        form.addRow("Registro Publicado:", self.lbl_spf_raw)
+        form.addRow("Registro Publicado:", self._raw_record_row(self.lbl_spf_raw, self.btn_copy_spf))
         form.addRow("Status Sintático:", self.lbl_spf_status)
         form.addRow("DNS Lookups:", self.lbl_spf_lookups)
         form.addRow("Política all Final:", self.lbl_spf_all)
@@ -191,14 +246,29 @@ class MailDNSTabWidget(QWidget):
         self.table_spf_terms = QTableWidget(0, 4)
         self.table_spf_terms.setHorizontalHeaderLabels(["Qualificador", "Mecanismo", "Valor / Alvo", "DNS Lookup?"])
         self.table_spf_terms.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.table_spf_terms.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         layout.addWidget(self.table_spf_terms)
+
+
+    def _setup_dkim_tab(self, widget: QWidget) -> None:
+        layout = QVBoxLayout(widget)
+        layout.addWidget(QLabel("Selectors DKIM consultados:"))
+        self.table_dkim = QTableWidget(0, 8)
+        self.table_dkim.setHorizontalHeaderLabels(
+            ["Selector", "Query", "Status", "Tipo", "Bits", "Flags", "Serviços", "Erros / Notas"]
+        )
+        self.table_dkim.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.table_dkim.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        layout.addWidget(self.table_dkim)
 
     def _setup_dmarc_tab(self, widget: QWidget) -> None:
         layout = QVBoxLayout(widget)
         form = QFormLayout()
 
-        self.lbl_dmarc_raw = QLabel("-")
-        self.lbl_dmarc_raw.setWordWrap(True)
+        self.lbl_dmarc_raw = self._create_raw_record_view()
+        self.btn_copy_dmarc = QPushButton("Copiar")
+        self.btn_copy_dmarc.setObjectName("secondaryButton")
+        self.btn_copy_dmarc.clicked.connect(lambda: self._copy_raw_record(self.lbl_dmarc_raw))
         self.lbl_dmarc_status = QLabel("-")
         self.lbl_dmarc_policy = QLabel("-")
         self.lbl_dmarc_sp = QLabel("-")
@@ -207,7 +277,7 @@ class MailDNSTabWidget(QWidget):
         self.lbl_dmarc_org = QLabel("-")
         self.lbl_dmarc_rua = QLabel("-")
 
-        form.addRow("Registro Publicado:", self.lbl_dmarc_raw)
+        form.addRow("Registro Publicado:", self._raw_record_row(self.lbl_dmarc_raw, self.btn_copy_dmarc))
         form.addRow("Status:", self.lbl_dmarc_status)
         form.addRow("Política p:", self.lbl_dmarc_policy)
         form.addRow("Política sp (subdomínio):", self.lbl_dmarc_sp)
@@ -225,6 +295,7 @@ class MailDNSTabWidget(QWidget):
         self.table_findings = QTableWidget(0, 4)
         self.table_findings.setHorizontalHeaderLabels(["Severidade", "Categoria", "ID", "Título"])
         self.table_findings.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.table_findings.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table_findings.itemSelectionChanged.connect(self._on_finding_selected)
         splitter.addWidget(self.table_findings)
 
@@ -260,7 +331,7 @@ class MailDNSTabWidget(QWidget):
         self.progress_bar.setValue(0)
         self.status_label.setText("Iniciando diagnóstico Mail DNS...")
 
-        worker = MailDNSDiagnosticsWorker(self.coordinator, raw_domain)
+        worker = MailDNSDiagnosticsWorker(self.coordinator, raw_domain, self.dkim_selectors_input.text())
         worker.signals.started.connect(self._on_started)
         worker.signals.progress.connect(self._on_progress)
         worker.signals.finished.connect(self._on_finished)
@@ -294,7 +365,7 @@ class MailDNSTabWidget(QWidget):
         outcome, snapshot = result_tuple
         self._current_outcome = outcome
         self._reset_action_buttons()
-        self.progress_bar.setValue(5)
+        self.progress_bar.setValue(6)
         self.progress_bar.setVisible(False)
 
         if outcome.partial:
@@ -317,38 +388,38 @@ class MailDNSTabWidget(QWidget):
         lbl_mx_stat = self.card_mx.property("lbl_status")
         lbl_mx_det = self.card_mx.property("lbl_details")
         if outcome.routing.mx_record.status == MXStatus.NULL_MX:
-            lbl_mx_stat.setText("Null MX (Sem E-mail)")
+            lbl_mx_stat.setText(self._card_status("Atenção", "Null MX"))
             lbl_mx_det.setText("Domínio declara recusa explícita de e-mail.")
         elif outcome.routing.mx_record.status == MXStatus.NO_MX:
-            lbl_mx_stat.setText("Sem MX")
+            lbl_mx_stat.setText(self._card_status("Erro", "Sem MX"))
             lbl_mx_det.setText("Nenhum servidor MX publicado.")
         else:
             count = len(outcome.routing.mx_record.records)
-            lbl_mx_stat.setText(f"MX Válido ({count})")
+            lbl_mx_stat.setText(self._card_status("OK", f"MX válido ({count})"))
             lbl_mx_det.setText(f"{count} servidor(es) MX configurado(s).")
 
         lbl_ptr_stat = self.card_ptr.property("lbl_status")
         lbl_ptr_det = self.card_ptr.property("lbl_details")
         summary = outcome.identity_summary
-        lbl_ptr_stat.setText(f"FCRDNS ({summary.fcrdns_aligned_ips}/{summary.fcrdns_total_ips})")
+        lbl_ptr_stat.setText(self._card_status("OK", f"FCRDNS {summary.fcrdns_aligned_ips}/{summary.fcrdns_total_ips}"))
         lbl_ptr_det.setText(f"{summary.fcrdns_aligned_ips} IP(s) com FCRDNS alinhado.")
 
         lbl_spf_stat = self.card_spf.property("lbl_status")
         lbl_spf_det = self.card_spf.property("lbl_details")
         if outcome.spf.status == SPFStatus.VALID_SINGLE:
-            lbl_spf_stat.setText(f"SPF Válido ({outcome.spf.all_qualifier or ''}all)")
+            lbl_spf_stat.setText(self._card_status("OK", f"SPF válido ({outcome.spf.all_qualifier or ''}all)"))
             lbl_spf_det.setText(f"{outcome.spf.dns_lookup_count}/10 DNS lookups.")
         else:
-            lbl_spf_stat.setText(f"SPF: {outcome.spf.status.value}")
+            lbl_spf_stat.setText(self._card_status("Atenção", f"SPF {outcome.spf.status.value}"))
             lbl_spf_det.setText(outcome.spf.validation_error or "Atenção na política SPF.")
 
         lbl_dmarc_stat = self.card_dmarc.property("lbl_status")
         lbl_dmarc_det = self.card_dmarc.property("lbl_details")
         if outcome.dmarc.status == DMARCStatus.VALID:
-            lbl_dmarc_stat.setText(f"DMARC (p={outcome.dmarc.policy})")
+            lbl_dmarc_stat.setText(self._card_status("OK", f"DMARC p={outcome.dmarc.policy}"))
             lbl_dmarc_det.setText(f"Organizational: {outcome.dmarc.organizational_domain}")
         else:
-            lbl_dmarc_stat.setText(f"DMARC: {outcome.dmarc.status.value}")
+            lbl_dmarc_stat.setText(self._card_status("Atenção", f"DMARC {outcome.dmarc.status.value}"))
             lbl_dmarc_det.setText("Nenhum registro DMARC válido.")
 
         # 2. Render Routing Tab
@@ -359,11 +430,11 @@ class MailDNSTabWidget(QWidget):
             v4_str = ", ".join(a.ip for a in r.addresses_v4) or "-"
             v6_str = ", ".join(a.ip for a in r.addresses_v6) or "-"
             cname_str = "Sim" if r.cname_detected else "Não"
-            self.table_mx.setItem(row, 0, QTableWidgetItem(str(r.preference)))
-            self.table_mx.setItem(row, 1, QTableWidgetItem(r.exchange))
-            self.table_mx.setItem(row, 2, QTableWidgetItem(v4_str))
-            self.table_mx.setItem(row, 3, QTableWidgetItem(v6_str))
-            self.table_mx.setItem(row, 4, QTableWidgetItem(cname_str))
+            self._set_table_item(self.table_mx, row, 0, str(r.preference))
+            self._set_table_item(self.table_mx, row, 1, r.exchange)
+            self._set_table_item(self.table_mx, row, 2, v4_str)
+            self._set_table_item(self.table_mx, row, 3, v6_str)
+            self._set_table_item(self.table_mx, row, 4, cname_str)
 
         self.table_ptr.setRowCount(0)
         for p in outcome.routing.ptr_record.results:
@@ -371,13 +442,13 @@ class MailDNSTabWidget(QWidget):
             self.table_ptr.insertRow(row)
             ptr_hosts = ", ".join(p.ptr_hostnames) or "-"
             fwd_ips = ", ".join(p.forward_ips) or "-"
-            self.table_ptr.setItem(row, 0, QTableWidgetItem(p.ip))
-            self.table_ptr.setItem(row, 1, QTableWidgetItem(ptr_hosts))
-            self.table_ptr.setItem(row, 2, QTableWidgetItem(fwd_ips))
-            self.table_ptr.setItem(row, 3, QTableWidgetItem(p.status.value))
+            self._set_table_item(self.table_ptr, row, 0, p.ip)
+            self._set_table_item(self.table_ptr, row, 1, ptr_hosts)
+            self._set_table_item(self.table_ptr, row, 2, fwd_ips)
+            self._set_table_item(self.table_ptr, row, 3, p.status.value)
 
         # 3. Render SPF Tab
-        self.lbl_spf_raw.setText(outcome.spf.raw_record or "-")
+        self.lbl_spf_raw.setPlainText(outcome.spf.raw_record or "-")
         self.lbl_spf_status.setText(outcome.spf.status.value)
         lookups_str = f"{outcome.spf.dns_lookup_count} (limite: 10) | Void: {outcome.spf.void_lookup_count}"
         self.lbl_spf_lookups.setText(lookups_str)
@@ -388,13 +459,32 @@ class MailDNSTabWidget(QWidget):
         for t in outcome.spf.terms:
             row = self.table_spf_terms.rowCount()
             self.table_spf_terms.insertRow(row)
-            self.table_spf_terms.setItem(row, 0, QTableWidgetItem(t.qualifier))
-            self.table_spf_terms.setItem(row, 1, QTableWidgetItem(t.mechanism))
-            self.table_spf_terms.setItem(row, 2, QTableWidgetItem(t.value or "-"))
-            self.table_spf_terms.setItem(row, 3, QTableWidgetItem("Sim" if t.causes_dns_lookup else "Não"))
+            self._set_table_item(self.table_spf_terms, row, 0, t.qualifier)
+            self._set_table_item(self.table_spf_terms, row, 1, t.mechanism)
+            self._set_table_item(self.table_spf_terms, row, 2, t.value or "-")
+            self._set_table_item(self.table_spf_terms, row, 3, "Sim" if t.causes_dns_lookup else "Não")
 
-        # 4. Render DMARC Tab
-        self.lbl_dmarc_raw.setText(outcome.dmarc.raw_record or "-")
+        # 4. Render DKIM Tab
+        self.table_dkim.setRowCount(0)
+        for result in outcome.dkim.results:
+            row = self.table_dkim.rowCount()
+            self.table_dkim.insertRow(row)
+            notes = "; ".join(result.validation_errors or result.notes) or "-"
+            values = [
+                result.selector,
+                result.query_name,
+                result.status.value,
+                result.key_type or "-",
+                str(result.public_key_bits) if result.public_key_bits is not None else "-",
+                ", ".join(result.flags) or "-",
+                ", ".join(result.services) or "-",
+                notes,
+            ]
+            for column, value in enumerate(values):
+                self._set_table_item(self.table_dkim, row, column, value)
+
+        # 5. Render DMARC Tab
+        self.lbl_dmarc_raw.setPlainText(outcome.dmarc.raw_record or "-")
         self.lbl_dmarc_status.setText(outcome.dmarc.status.value)
         self.lbl_dmarc_policy.setText(outcome.dmarc.policy or "-")
         self.lbl_dmarc_sp.setText(outcome.dmarc.subdomain_policy or "Herdada de p")
@@ -403,15 +493,15 @@ class MailDNSTabWidget(QWidget):
         self.lbl_dmarc_org.setText(outcome.dmarc.organizational_domain)
         self.lbl_dmarc_rua.setText(", ".join(outcome.dmarc.rua) or "-")
 
-        # 5. Render Findings Tab
+        # 6. Render Findings Tab
         self.table_findings.setRowCount(0)
         for f in outcome.findings:
             row = self.table_findings.rowCount()
             self.table_findings.insertRow(row)
-            self.table_findings.setItem(row, 0, QTableWidgetItem(f.severity.value))
-            self.table_findings.setItem(row, 1, QTableWidgetItem(f.category))
-            self.table_findings.setItem(row, 2, QTableWidgetItem(f.id))
-            self.table_findings.setItem(row, 3, QTableWidgetItem(f.title))
+            self._set_table_item(self.table_findings, row, 0, f.severity.value)
+            self._set_table_item(self.table_findings, row, 1, f.category)
+            self._set_table_item(self.table_findings, row, 2, f.id)
+            self._set_table_item(self.table_findings, row, 3, f.title)
 
         self.txt_finding_desc.clear()
         self.txt_finding_evidence.clear()

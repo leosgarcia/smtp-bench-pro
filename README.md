@@ -17,7 +17,7 @@
 
 A ferramenta foi criada para administradores de sistemas, consultores de infraestrutura, equipes MSP, DevOps, NOC/SOC e profissionais de segurança que precisam avaliar servidores SMTP de forma reproduzível, conservadora e auditável.
 
-A versão atual é **0.2.6** e já valida a arquitetura federada do ecossistema Bench Pro: funciona como aplicação standalone e também como módulo integrável no **Bench Pro Core** via Integration API v1.
+A versão atual é **1.0.0-rc1** e consolida o produto como uma candidata estável à versão 1.0, com o trio SPF/DKIM/DMARC completo dentro do diagnóstico estático de DNS de e-mail. A aplicação continua standalone e também funciona como módulo integrável no **Bench Pro Core** via Integration API v1.
 
 ## Recursos
 
@@ -36,14 +36,23 @@ A versão atual é **0.2.6** e já valida a arquitetura federada do ecossistema 
 - Histórico master/detail reconstruído a partir de dados persistidos.
 - Exportação fiel de execução histórica em JSON e HTML standalone.
 - Comparação entre duas execuções históricas persistidas.
-- SQLite próprio com migrations até schema v3.
+- Diagnóstico DNS de e-mail com MX, A/AAAA, PTR/FCRDNS, SPF, DKIM e DMARC.
+- DKIM por selectors informados manualmente, usando somente DNS TXT.
+- SQLite próprio com migrations até schema v4.
 - Integration API v1 para hospedagem no Bench Pro Core.
+
+## Documentação viva
+
+- [Fronteiras de segurança](docs/SECURITY_BOUNDARIES.md)
+- [Guia rápido](docs/USER_GUIDE.md)
+- [Specs congeladas](docs/specs/)
+- [Release notes](docs/releases/)
 
 ## Fronteiras de segurança
 
 SMTP Bench Pro **não** é cliente de e-mail e **não** é scanner agressivo.
 
-A versão 0.2.6 não executa:
+A versão 1.0.0-rc1 não executa:
 
 - autenticação real;
 - envio de e-mail;
@@ -80,6 +89,21 @@ A aba Histórico permite:
 - exportar comparações históricas para JSON ou HTML.
 
 A visualização histórica nunca consulta o servidor novamente e nunca reavalia rules atuais.
+
+## DNS de E-mail
+
+A aba **DNS de E-mail** executa diagnóstico estático e conservador para domínios, sem SMTP ativo.
+
+Cobertura atual:
+
+- MX e resolução A/AAAA dos exchanges;
+- PTR e FCRDNS;
+- SPF com parser de termos e orçamento de lookup;
+- DKIM por selector manual em `<selector>._domainkey.<domain>`;
+- DMARC com política, alinhamento e domínio organizacional;
+- findings estáveis para evidência e recomendações.
+
+DKIM não faz autodiscovery de selectors e não valida assinatura real de mensagens.
 
 ## Exportação histórica
 
@@ -136,7 +160,9 @@ smtp-bench-pro/
 └── requirements-dev.txt    # Dependências de desenvolvimento
 ```
 
-## Instalação para desenvolvimento
+## Instalação
+
+### Via Python
 
 ```bash
 git clone https://github.com/leosgarcia/smtp-bench-pro.git
@@ -144,7 +170,13 @@ cd smtp-bench-pro
 python -m pip install -e ".[dev]"
 ```
 
-## Uso
+### Versão empacotada para Windows
+
+- Baixe o artefato oficial quando estiver disponível em `dist/` ou na release GitHub.
+- O pacote inicial é Windows-first.
+- O executável continua compatível com `python -m smtp_bench_pro`.
+
+## Executar via Python
 
 ### Interface gráfica standalone
 
@@ -158,22 +190,18 @@ python -m smtp_bench_pro
 python -m smtp_bench_pro --version
 ```
 
-### Integração com Bench Pro Core
+## Executar versão empacotada
 
-Instalar em modo editable ao lado do Core:
-
-```bash
-cd benchpro-core
-python -m pip install -e ..\smtp-bench-pro
-python -m benchpro_core --list-modules
+```powershell
+& ".\SMTP Bench Pro.exe"
 ```
 
-Exemplo esperado:
+Limitações do pacote Windows inicial:
 
-```text
-SMTP Bench Pro 0.2.6 [API 1]
-```
-
+- não inclui SQLite local;
+- não inclui logs, caches ou `.env`;
+- não altera a Integration API;
+- não altera o modo integrado no Bench Pro Core.
 ## Integration API
 
 Entry point:
@@ -188,7 +216,7 @@ Metadados:
 ```text
 module_id = smtp
 display_name = SMTP Bench Pro
-version = 0.2.6
+version = 1.0.0-rc1
 integration_api = 1
 vendor = WL Tech
 capabilities = benchmark, diagnostics, history, security_audit
@@ -206,38 +234,28 @@ bandit -r src
 
 Estado atual validado:
 
-- `pytest`: 80 testes passando
+- `pytest`: 174 testes passando, cobrindo SMTP, Mail DNS, DKIM, histórico, exportação e integração
 - `ruff`: sem violações
 - `bandit`: sem achados relevantes
 - standalone: validado
 - integrado no Bench Pro Core: validado
 
-## Fora de escopo nesta versão
+## Limitações conhecidas
 
-- SPF
-- DKIM
-- DMARC
-- MTA-STS
-- TLS-RPT
-- PTR
-- RBL
-- Open Relay
-- AUTH real
-- OAuth
-- envio de e-mail
-- score 0-100
-- PDF
-- dashboard do Core
+- sem AUTH real;
+- sem envio de e-mail;
+- sem Open Relay test;
+- sem autodiscovery DKIM;
+- sem validação real de assinatura DKIM;
+- sem MTA-STS;
+- sem TLS-RPT;
+- sem MSI/NSIS nesta fase;
+- sem score 0-100;
+- sem PDF.
 
 ## Roadmap
 
-- 0.3: diagnósticos DNS de e-mail, incluindo MX/SPF.
-- 0.4: DKIM e DMARC.
-- 0.5: expansão de auditoria de segurança SMTP.
-- 0.6: relatórios avançados.
-- 0.7: empacotamento desktop.
-- 0.8: hardening de integração com Core.
-- 0.9: release candidate.
+- 1.0.0-rc1: freeze funcional, QA manual, documentação final, hash SHA256 e smoke test do pacote Windows.
 - 1.0: versão estável.
 
 ## Licença
@@ -245,6 +263,13 @@ Estado atual validado:
 SMTP Bench Pro é distribuído sob a [Licença MIT](LICENSE).
 
 © 2026 WL Tech. Website: https://wltech.com.br
+
+
+
+
+
+
+
 
 
 

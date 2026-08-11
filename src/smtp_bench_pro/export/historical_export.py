@@ -14,6 +14,7 @@ from smtp_bench_pro.export.html_exporter import write_html
 from smtp_bench_pro.export.io import atomic_write, safe_filename_part
 from smtp_bench_pro.export.json_exporter import write_json
 from smtp_bench_pro.persistence.mail_dns_serializer import (
+    serialize_dkim_result,
     serialize_dmarc_result,
     serialize_identity_summary,
     serialize_mail_dns_findings,
@@ -217,6 +218,7 @@ def serialize_mail_dns_snapshot_to_dict(snapshot: MailDNSRunSnapshot | None) -> 
 
     mx_json, ptr_json = serialize_routing_result(snapshot.routing)
     spf_json = serialize_spf_result(snapshot.spf)
+    dkim_json = serialize_dkim_result(snapshot.dkim)
     dmarc_json = serialize_dmarc_result(snapshot.dmarc)
     summary_json = serialize_identity_summary(snapshot.identity_summary)
     findings_json = serialize_mail_dns_findings(snapshot.findings)
@@ -230,6 +232,7 @@ def serialize_mail_dns_snapshot_to_dict(snapshot: MailDNSRunSnapshot | None) -> 
         "created_at": snapshot.created_at,
         "routing": mx_dict,
         "spf": json.loads(spf_json),
+        "dkim": json.loads(dkim_json),
         "dmarc": json.loads(dmarc_json),
         "identity_summary": json.loads(summary_json),
         "findings": json.loads(findings_json),

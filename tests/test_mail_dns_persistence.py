@@ -9,6 +9,9 @@ import pytest
 
 from smtp_bench_pro.domain.mail_dns import (
     AddressRecord,
+    DKIMDiagnosticResult,
+    DKIMSelectorResult,
+    DKIMStatus,
     DMARCDiagnosticResult,
     DMARCStatus,
     FCRDNSResult,
@@ -146,6 +149,25 @@ def test_mail_dns_snapshot_save_and_reconstruction_roundtrip(tmp_path) -> None:
         organizational_domain="example.com",
     )
 
+    dkim = DKIMDiagnosticResult(
+        domain="example.com",
+        selectors=("default",),
+        results=(
+            DKIMSelectorResult(
+                selector="default",
+                query_name="default._domainkey.example.com",
+                status=DKIMStatus.VALID,
+                raw_record="v=DKIM1; k=ed25519; p=MTIz",
+                key_type="ed25519",
+                public_key_present=True,
+                public_key_bits=24,
+                services=("email",),
+                hash_algorithms=("sha256",),
+            ),
+        ),
+        checked_at="2026-08-08T22:00:00Z",
+    )
+
     summary = MailIdentitySummary(
         domain="example.com",
         organizational_domain="example.com",
@@ -155,6 +177,8 @@ def test_mail_dns_snapshot_save_and_reconstruction_roundtrip(tmp_path) -> None:
         dmarc_policy="reject",
         fcrdns_aligned_ips=1,
         fcrdns_total_ips=1,
+        dkim_valid_selectors=1,
+        dkim_total_selectors=1,
     )
 
     finding = MailDNSFinding(
@@ -175,6 +199,7 @@ def test_mail_dns_snapshot_save_and_reconstruction_roundtrip(tmp_path) -> None:
         spf=spf,
         dmarc=dmarc,
         identity_summary=summary,
+        dkim=dkim,
         findings=(finding,),
         created_at="2026-08-08T22:00:00Z",
     )
@@ -195,8 +220,46 @@ def test_mail_dns_snapshot_save_and_reconstruction_roundtrip(tmp_path) -> None:
     assert loaded.spf == original_snapshot.spf
     assert loaded.dmarc == original_snapshot.dmarc
     assert loaded.identity_summary == original_snapshot.identity_summary
+    assert loaded.dkim == original_snapshot.dkim
     assert loaded.findings == original_snapshot.findings
     assert loaded.spf.terms == original_snapshot.spf.terms  # Order preserved!
+
+
+
+def test_legacy_mail_dns_snapshot_without_dkim_loads_normally(tmp_path) -> None:
+    db_file = tmp_path / "legacy_dkim.db"
+    db = SMTPDatabase(path=db_file)
+    repo = SMTPBenchmarkRepository(database=db)
+    run_id = repo.save_run("legacy-dkim.example.com", 1, 3.0, [])
+
+    routing = MailRoutingDiagnosticResult(
+        "legacy-dkim.example.com",
+        "2026-08-08T22:00:00Z",
+        MXDiagnosticResult(MXStatus.NO_MX),
+        PTRDiagnosticResult(),
+    )
+    spf = SPFDiagnosticResult(status=SPFStatus.ABSENT)
+    dmarc = DMARCDiagnosticResult(status=DMARCStatus.ABSENT)
+    summary = MailIdentitySummary("legacy-dkim.example.com", "legacy-dkim.example.com", 0, False, None, None, 0, 0)
+    snapshot = MailDNSRunSnapshot(
+        id=None,
+        run_id=run_id,
+        domain="legacy-dkim.example.com",
+        routing=routing,
+        spf=spf,
+        dmarc=dmarc,
+        identity_summary=summary,
+        findings=(),
+        created_at="2026-08-08T22:00:00Z",
+    )
+
+    repo.save_mail_dns_snapshot(snapshot)
+    loaded = repo.get_mail_dns_snapshot(run_id)
+
+    assert loaded is not None
+    assert loaded.dkim.domain == "legacy-dkim.example.com"
+    assert loaded.dkim.results == ()
+    assert loaded.identity_summary.dkim_total_selectors == 0
 
 
 def test_cascade_delete_removes_mail_dns_snapshot(tmp_path) -> None:

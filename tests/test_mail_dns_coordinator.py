@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import sys
 
 from smtp_bench_pro.application.mail_dns_coordinator import (
@@ -11,6 +12,7 @@ from smtp_bench_pro.application.mail_dns_coordinator import (
 from smtp_bench_pro.domain.mail_dns import (
     DNSQueryResult,
     DNSQueryStatus,
+    DKIMStatus,
     DMARCStatus,
     MailDNSRunSnapshot,
     MXStatus,
@@ -19,6 +21,10 @@ from smtp_bench_pro.domain.mail_dns import (
 from smtp_bench_pro.engine.dns_resolver import IMailDNSResolver
 from smtp_bench_pro.persistence.database import SMTPDatabase
 from smtp_bench_pro.persistence.repository import SMTPBenchmarkRepository
+
+
+def _dkim_key() -> str:
+    return base64.b64encode(b"1" * 32).decode("ascii")
 
 
 class FakeDNSResolver(IMailDNSResolver):
@@ -61,6 +67,9 @@ class FakeDNSResolver(IMailDNSResolver):
             return DNSQueryResult(name, "TXT", DNSQueryStatus.SUCCESS, ("v=spf1 include:_spf.example.com -all",))
         if name == "_spf.example.com":
             return DNSQueryResult(name, "TXT", DNSQueryStatus.SUCCESS, ("v=spf1 ip4:93.184.216.25 -all",))
+        if name == "default._domainkey.example.com":
+            txt = f"v=DKIM1; k=ed25519; p={_dkim_key()}; s=email; h=sha256"
+            return DNSQueryResult(name, "TXT", DNSQueryStatus.SUCCESS, (txt,))
         if name == "_dmarc.example.com":
             txt = "v=DMARC1; p=reject; rua=mailto:dmarc@example.com"
             return DNSQueryResult(name, "TXT", DNSQueryStatus.SUCCESS, (txt,))
@@ -85,17 +94,21 @@ def test_coordinator_execute_diagnostics() -> None:
     def on_progress(step: int, text: str) -> None:
         progress_log.append((step, text))
 
-    outcome = coordinator.execute_diagnostics("example.com", progress_callback=on_progress)
+    outcome = coordinator.execute_diagnostics("example.com", progress_callback=on_progress, dkim_selectors="default")
 
     assert isinstance(outcome, MailDNSDiagnosticsOutcome)
     assert outcome.target.domain == "example.com"
     assert outcome.routing.mx_record.status == MXStatus.SINGLE_MX
     assert outcome.spf.status == SPFStatus.VALID_SINGLE
+    assert outcome.dkim.results[0].status == DKIMStatus.VALID
+    assert outcome.identity_summary.dkim_valid_selectors == 1
+    assert outcome.identity_summary.dkim_total_selectors == 1
     assert outcome.dmarc.status == DMARCStatus.VALID
     assert outcome.identity_summary.domain == "example.com"
     assert outcome.identity_summary.dmarc_policy == "reject"
     assert outcome.partial is False
-    assert len(progress_log) == 5
+    assert len(progress_log) == 6
+    assert progress_log[3][1] == "Analisando selectors DKIM informados..."
 
 
 def test_coordinator_diagnose_and_persist(tmp_path) -> None:
@@ -119,3 +132,4 @@ def test_coordinator_diagnose_and_persist(tmp_path) -> None:
     assert loaded is not None
     assert loaded.domain == "example.com"
     assert loaded.identity_summary.domain == "example.com"
+

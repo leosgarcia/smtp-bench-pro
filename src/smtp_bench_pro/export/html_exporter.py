@@ -186,6 +186,10 @@ def _mail_dns_section(mail_dns: dict[str, Any] | None) -> str:
             ("Contagem de MX", summary.get("mx_count")),
             ("Null MX", "Sim" if summary.get("has_null_mx") else "Não"),
             ("Política SPF", summary.get("spf_policy")),
+            (
+                "DKIM selectors válidos",
+                f"{summary.get('dkim_valid_selectors', 0)}/{summary.get('dkim_total_selectors', 0)}",
+            ),
             ("Política DMARC", summary.get("dmarc_policy")),
             ("FCRDNS Alinhado", f"{summary.get('fcrdns_aligned_ips', 0)}/{summary.get('fcrdns_total_ips', 0)} IPs"),
         ]
@@ -269,6 +273,34 @@ def _mail_dns_section(mail_dns: dict[str, Any] | None) -> str:
         ]
     )
 
+
+    # DKIM Details
+    dkim_data = mail_dns.get("dkim", {}) if isinstance(mail_dns.get("dkim"), dict) else {}
+    dkim_results = dkim_data.get("results", []) if isinstance(dkim_data.get("results"), list) else []
+    dkim_rows = []
+    for result in dkim_results:
+        if isinstance(result, dict):
+            dkim_rows.append(
+                "<tr>"
+                + _cell(result.get("selector"))
+                + _cell(result.get("query_name"))
+                + _cell(result.get("status"))
+                + _cell(result.get("raw_record"))
+                + _cell(result.get("key_type"))
+                + _cell(result.get("public_key_bits"))
+                + _cell(_list(result.get("flags")))
+                + _cell(_list(result.get("services")))
+                + _cell(_list(result.get("hash_algorithms")))
+                + _cell(_list(result.get("validation_errors") or result.get("notes")))
+                + "</tr>"
+            )
+    dkim_body = "".join(dkim_rows) or '<tr><td colspan="10">DKIM não disponível nesta execução.</td></tr>'
+    dkim_table = (
+        "<table><thead><tr><th>Selector</th><th>Query</th><th>Status</th><th>Registro</th><th>Tipo</th><th>Bits</th>"
+        "<th>Flags</th><th>Serviços</th><th>Hashes</th><th>Erros / Notas</th></tr></thead>"
+        f"<tbody>{dkim_body}</tbody></table>"
+    )
+
     # DMARC Details
     dmarc_data = mail_dns.get("dmarc", {}) if isinstance(mail_dns.get("dmarc"), dict) else {}
     dmarc_kv = _kv_table(
@@ -321,6 +353,8 @@ def _mail_dns_section(mail_dns: dict[str, Any] | None) -> str:
             "<h3>Diagnóstico SPF</h3>",
             spf_kv,
             spf_table,
+            "<h3>Diagnóstico DKIM</h3>",
+            dkim_table,
             "<h3>Diagnóstico DMARC</h3>",
             dmarc_kv,
             "<h3>Achados de Segurança Mail DNS</h3>",
@@ -408,4 +442,5 @@ footer {{ color: #52606d; font-size: 12px; padding: 0 32px 24px; }}
 
 def write_html(path: Path, payload: dict[str, Any]) -> None:
     path.write_text(render_html(payload), encoding="utf-8")
+
 

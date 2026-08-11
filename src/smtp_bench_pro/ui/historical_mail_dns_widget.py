@@ -74,11 +74,13 @@ class HistoricalMailDNSWidget(QWidget):
         self.card_mx = self._create_card("Roteamento MX")
         self.card_ptr = self._create_card("PTR / FCRDNS")
         self.card_spf = self._create_card("Registro SPF")
+        self.card_dkim = self._create_card("Registro DKIM")
         self.card_dmarc = self._create_card("Registro DMARC")
 
         cards_layout.addWidget(self.card_mx)
         cards_layout.addWidget(self.card_ptr)
         cards_layout.addWidget(self.card_spf)
+        cards_layout.addWidget(self.card_dkim)
         cards_layout.addWidget(self.card_dmarc)
         content_layout.addLayout(cards_layout)
 
@@ -95,12 +97,17 @@ class HistoricalMailDNSWidget(QWidget):
         self._setup_spf_tab(self.tab_spf)
         self.detail_tabs.addTab(self.tab_spf, "SPF")
 
-        # Tab 3: DMARC
+        # Tab 3: DKIM
+        self.tab_dkim = QWidget()
+        self._setup_dkim_tab(self.tab_dkim)
+        self.detail_tabs.addTab(self.tab_dkim, "DKIM")
+
+        # Tab 4: DMARC
         self.tab_dmarc = QWidget()
         self._setup_dmarc_tab(self.tab_dmarc)
         self.detail_tabs.addTab(self.tab_dmarc, "DMARC")
 
-        # Tab 4: Findings
+        # Tab 5: Findings
         self.tab_findings = QWidget()
         self._setup_findings_tab(self.tab_findings)
         self.detail_tabs.addTab(self.tab_findings, "Achados de Segurança")
@@ -161,6 +168,17 @@ class HistoricalMailDNSWidget(QWidget):
         self.table_spf_terms.setHorizontalHeaderLabels(["Qualificador", "Mecanismo", "Valor / Alvo", "DNS Lookup?"])
         self.table_spf_terms.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         layout.addWidget(self.table_spf_terms)
+
+
+    def _setup_dkim_tab(self, widget: QWidget) -> None:
+        layout = QVBoxLayout(widget)
+        layout.addWidget(QLabel("Selectors DKIM Persistidos:"))
+        self.table_dkim = QTableWidget(0, 8)
+        self.table_dkim.setHorizontalHeaderLabels(
+            ["Selector", "Query", "Status", "Tipo", "Bits", "Flags", "Serviços", "Erros / Notas"]
+        )
+        self.table_dkim.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        layout.addWidget(self.table_dkim)
 
     def _setup_dmarc_tab(self, widget: QWidget) -> None:
         layout = QVBoxLayout(widget)
@@ -259,6 +277,16 @@ class HistoricalMailDNSWidget(QWidget):
             lbl_spf_stat.setText(f"SPF: {snapshot.spf.status.value}")
             lbl_spf_det.setText(snapshot.spf.validation_error or "Atenção na política SPF.")
 
+        lbl_dkim_stat = self.card_dkim.property("lbl_status")
+        lbl_dkim_det = self.card_dkim.property("lbl_details")
+        if snapshot.dkim.results:
+            valid = sum(1 for result in snapshot.dkim.results if result.status.value == "VALID")
+            lbl_dkim_stat.setText(f"DKIM ({valid}/{len(snapshot.dkim.results)})")
+            lbl_dkim_det.setText(f"{len(snapshot.dkim.results)} selector(es) persistido(s).")
+        else:
+            lbl_dkim_stat.setText("DKIM: N/A")
+            lbl_dkim_det.setText("Não disponível nesta execução.")
+
         lbl_dmarc_stat = self.card_dmarc.property("lbl_status")
         lbl_dmarc_det = self.card_dmarc.property("lbl_details")
         if snapshot.dmarc.status == DMARCStatus.VALID:
@@ -309,6 +337,25 @@ class HistoricalMailDNSWidget(QWidget):
             self.table_spf_terms.setItem(row, 1, QTableWidgetItem(t.mechanism))
             self.table_spf_terms.setItem(row, 2, QTableWidgetItem(t.value or "-"))
             self.table_spf_terms.setItem(row, 3, QTableWidgetItem("Sim" if t.causes_dns_lookup else "Não"))
+
+        # Render DKIM
+        self.table_dkim.setRowCount(0)
+        for result in snapshot.dkim.results:
+            row = self.table_dkim.rowCount()
+            self.table_dkim.insertRow(row)
+            notes = "; ".join(result.validation_errors or result.notes) or "-"
+            values = [
+                result.selector,
+                result.query_name,
+                result.status.value,
+                result.key_type or "-",
+                str(result.public_key_bits) if result.public_key_bits is not None else "-",
+                ", ".join(result.flags) or "-",
+                ", ".join(result.services) or "-",
+                notes,
+            ]
+            for column, value in enumerate(values):
+                self.table_dkim.setItem(row, column, QTableWidgetItem(value))
 
         # Render DMARC
         self.lbl_dmarc_raw.setText(snapshot.dmarc.raw_record or "-")

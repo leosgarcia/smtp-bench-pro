@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import sys
 from PySide6.QtCore import QThreadPool
 from PySide6.QtWidgets import QApplication
@@ -14,6 +15,10 @@ from smtp_bench_pro.domain.mail_dns import (
 from smtp_bench_pro.engine.dns_resolver import IMailDNSResolver
 from smtp_bench_pro.ui.mail_dns_tab import MailDNSTabWidget
 from smtp_bench_pro.ui.widgets.smtp_bench_widget import SMTPBenchWidget
+
+
+def _dkim_key() -> str:
+    return base64.b64encode(b"1" * 32).decode("ascii")
 
 
 class FakeDNSResolver(IMailDNSResolver):
@@ -56,6 +61,9 @@ class FakeDNSResolver(IMailDNSResolver):
             return DNSQueryResult(name, "TXT", DNSQueryStatus.SUCCESS, ("v=spf1 include:_spf.example.com -all",))
         if name == "_spf.example.com":
             return DNSQueryResult(name, "TXT", DNSQueryStatus.SUCCESS, ("v=spf1 ip4:93.184.216.25 -all",))
+        if name == "default._domainkey.example.com":
+            txt = f"v=DKIM1; k=ed25519; p={_dkim_key()}; s=email; h=sha256"
+            return DNSQueryResult(name, "TXT", DNSQueryStatus.SUCCESS, (txt,))
         if name == "_dmarc.example.com":
             txt = "v=DMARC1; p=reject; rua=mailto:dmarc@example.com"
             return DNSQueryResult(name, "TXT", DNSQueryStatus.SUCCESS, (txt,))
@@ -112,15 +120,43 @@ def test_mail_dns_tab_empty_state_and_render(qtbot) -> None:
 
     # Set valid domain input and execute
     tab.domain_input.setText("example.com")
-    outcome = coordinator.execute_diagnostics("example.com")
+    outcome = coordinator.execute_diagnostics("example.com", dkim_selectors="default")
     tab.render_outcome(outcome)
 
     # Check rendering
     lbl_mx_stat = tab.card_mx.property("lbl_status")
-    assert "MX Válido" in lbl_mx_stat.text()
+    assert "MX válido" in lbl_mx_stat.text()
 
     lbl_dmarc_stat = tab.card_dmarc.property("lbl_status")
     assert "p=reject" in lbl_dmarc_stat.text()
 
     assert tab.table_mx.rowCount() == 1
     assert tab.table_mx.item(0, 1).text() == "mail.example.com"
+    assert tab.detail_tabs.tabText(2) == "DKIM"
+    assert tab.table_dkim.rowCount() == 1
+    assert tab.table_dkim.item(0, 0).text() == "default"
+    assert tab.table_dkim.item(0, 2).text() == "VALID"
+
+
+def test_mail_dns_cards_are_compact_and_status_textual(qtbot) -> None:
+    tab = MailDNSTabWidget()
+    qtbot.addWidget(tab)
+
+    assert tab.card_mx.objectName() == "mailDnsCard"
+    assert tab.card_mx.maximumHeight() <= 92
+    assert tab.card_mx.property("lbl_status").text().startswith("Status")
+
+
+def test_spf_dmarc_raw_records_are_read_only_copyable(qtbot) -> None:
+    fake_resolver = FakeDNSResolver()
+    coordinator = MailDNSDiagnosticsCoordinator(resolver=fake_resolver)
+    tab = MailDNSTabWidget(coordinator=coordinator)
+    qtbot.addWidget(tab)
+
+    outcome = coordinator.execute_diagnostics("example.com")
+    tab.render_outcome(outcome)
+
+    assert tab.lbl_spf_raw.isReadOnly() is True
+    assert "v=spf1" in tab.lbl_spf_raw.toPlainText()
+    assert tab.lbl_dmarc_raw.isReadOnly() is True
+    assert "v=DMARC1" in tab.lbl_dmarc_raw.toPlainText()

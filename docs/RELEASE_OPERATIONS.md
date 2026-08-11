@@ -5,13 +5,13 @@ Estes procedimentos documentam o fluxo operacional de release do SMTP Bench Pro.
 ## Versão atual
 
 ```text
-SMTP Bench Pro v0.2.6
+SMTP Bench Pro v1.0.0-rc1
 ```
 
 Notas públicas da versão:
 
 ```text
-docs/releases/v0.2.6.md
+docs/releases/v1.0.0-rc1.md
 ```
 
 ## Remote oficial
@@ -45,36 +45,41 @@ Validações manuais recomendadas:
 - comparar duas execuções históricas;
 - exportar uma comparação histórica para JSON e HTML.
 
+## Empacotamento Windows
+
+```powershell
+.\scripts\build_windows.ps1
+.\scripts\smoke_windows.ps1
+```
+
 ## Criar tag
 
 ```bash
 git fetch --tags
-git tag -a v0.2.6 -m "SMTP Bench Pro v0.2.6"
+git tag -a v1.0.0-rc1 -m "SMTP Bench Pro v1.0.0-rc1"
 git push origin main
-git push origin v0.2.6
+git push origin v1.0.0-rc1
 ```
 
 ## Criar release manualmente
 
 ```bash
-gh release create v0.2.6 \
+gh release create v1.0.0-rc1 \
   --repo leosgarcia/smtp-bench-pro \
-  --title "SMTP Bench Pro v0.2.6" \
-  --notes-file docs/releases/v0.2.6.md
+  --title "SMTP Bench Pro v1.0.0-rc1" \
+  --notes-file docs/releases/v1.0.0-rc1.md
 ```
 
-## Artefatos futuros
-
-A versão atual ainda não publica build PyInstaller oficial.
-
-Quando o empacotamento for habilitado, os artefatos devem seguir padrão semelhante:
+## Artefatos esperados
 
 ```text
-SMTP-Bench-Pro-vX.Y.Z-Windows-x64.zip
-SMTP-Bench-Pro-vX.Y.Z-Windows-x64.zip.sha256
-SMTP-Bench-Pro-vX.Y.Z-Linux-x64.tar.gz
-SMTP-Bench-Pro-vX.Y.Z-Linux-x64.tar.gz.sha256
+SMTP-Bench-Pro-1.0.0-rc1-Windows-x64.zip
+SMTP-Bench-Pro-1.0.0-rc1-Windows-x64.zip.sha256
 ```
 
+## Observações
 
-
+- A versão atual já possui fundação de build Windows com PyInstaller.
+- O pacote inicial é Windows-first.
+- Não incluir SQLite local, logs, caches ou `.env`.
+- O executável continua compatível com `python -m smtp_bench_pro`.

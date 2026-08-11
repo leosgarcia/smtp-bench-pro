@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from smtp_bench_pro.domain.mail_dns import (
+    DKIMDiagnosticResult,
+    DKIMStatus,
     DMARCDiagnosticResult,
     DMARCStatus,
     FCRDNSStatus,
@@ -211,6 +213,98 @@ def evaluate_spf_findings(spf: SPFDiagnosticResult) -> list[MailDNSFinding]:
     return findings
 
 
+
+
+def evaluate_dkim_findings(dkim: DKIMDiagnosticResult | None) -> list[MailDNSFinding]:
+    """Evaluates security findings related to DKIM selectors."""
+    findings: list[MailDNSFinding] = []
+    if dkim is None:
+        return findings
+
+    for result in dkim.results:
+        if result.status == DKIMStatus.ABSENT:
+            findings.append(
+                MailDNSFinding(
+                    id="MAILDNS-DKIM-001",
+                    title="Selector DKIM sem registro",
+                    severity=MailDNSSeverity.MEDIUM,
+                    category="DKIM",
+                    description="Nenhum registro DKIM foi encontrado para o selector informado.",
+                    evidence=f"{result.query_name} returned no DKIM TXT record.",
+                    recommendation=(
+                        "Confirme o selector utilizado pelo serviço de envio e publique o "
+                        "registro DKIM correto."
+                    ),
+                )
+            )
+        elif result.status == DKIMStatus.MULTIPLE:
+            findings.append(
+                MailDNSFinding(
+                    id="MAILDNS-DKIM-002",
+                    title="Múltiplos registros DKIM no selector",
+                    severity=MailDNSSeverity.HIGH,
+                    category="DKIM",
+                    description="Mais de um registro DKIM foi encontrado para o mesmo selector.",
+                    evidence=f"{result.query_name}: {result.raw_record or ''}",
+                    recommendation="Mantenha apenas um registro TXT DKIM válido por selector.",
+                )
+            )
+        elif result.status == DKIMStatus.INVALID_SYNTAX:
+            findings.append(
+                MailDNSFinding(
+                    id="MAILDNS-DKIM-003",
+                    title="Registro DKIM com sintaxe inválida",
+                    severity=MailDNSSeverity.MEDIUM,
+                    category="DKIM",
+                    description="O registro DKIM possui tags inválidas, duplicadas ou versão incompatível.",
+                    evidence=f"{result.query_name}: {'; '.join(result.validation_errors) or result.raw_record or ''}",
+                    recommendation="Corrija a sintaxe do registro DKIM e valide as tags publicadas.",
+                )
+            )
+        elif result.status == DKIMStatus.REVOKED:
+            findings.append(
+                MailDNSFinding(
+                    id="MAILDNS-DKIM-004",
+                    title="Chave DKIM revogada ou vazia",
+                    severity=MailDNSSeverity.HIGH,
+                    category="DKIM",
+                    description="O selector DKIM possui p= vazio, indicando chave revogada ou inutilizável.",
+                    evidence=f"{result.query_name}: p= vazio.",
+                    recommendation=(
+                        "Remova selectors revogados de configurações ativas ou publique uma "
+                        "chave DKIM válida."
+                    ),
+                )
+            )
+        elif result.status == DKIMStatus.INVALID_PUBLIC_KEY:
+            findings.append(
+                MailDNSFinding(
+                    id="MAILDNS-DKIM-005",
+                    title="Chave pública DKIM inválida",
+                    severity=MailDNSSeverity.HIGH,
+                    category="DKIM",
+                    description="A chave pública DKIM não pôde ser decodificada ou está ausente.",
+                    evidence=f"{result.query_name}: {'; '.join(result.validation_errors) or 'invalid public key'}",
+                    recommendation="Publique uma chave pública DKIM base64 válida no campo p=.",
+                )
+            )
+        if result.key_type == "rsa" and result.public_key_bits is not None and result.public_key_bits < 2048:
+            findings.append(
+                MailDNSFinding(
+                    id="MAILDNS-DKIM-006",
+                    title="Chave RSA DKIM fraca",
+                    severity=MailDNSSeverity.MEDIUM,
+                    category="DKIM",
+                    description="A chave RSA DKIM possui tamanho inferior a 2048 bits.",
+                    evidence=f"{result.query_name}: RSA {result.public_key_bits} bits.",
+                    recommendation=(
+                        "Rotacione a chave DKIM para RSA 2048 bits ou superior, "
+                        "ou Ed25519 quando suportado."
+                    ),
+                )
+            )
+    return findings
+
 def evaluate_dmarc_findings(dmarc: DMARCDiagnosticResult) -> list[MailDNSFinding]:
     """Evaluates security findings related to DMARC."""
     findings: list[MailDNSFinding] = []
@@ -259,6 +353,7 @@ def evaluate_mail_dns_findings(
     routing: MailRoutingDiagnosticResult,
     spf: SPFDiagnosticResult,
     dmarc: DMARCDiagnosticResult,
+    dkim: DKIMDiagnosticResult | None = None,
 ) -> tuple[MailDNSFinding, ...]:
     """Pure Mail DNS Security Findings Engine.
 
@@ -269,6 +364,7 @@ def evaluate_mail_dns_findings(
     raw_findings.extend(evaluate_mx_findings(routing))
     raw_findings.extend(evaluate_ptr_findings(routing))
     raw_findings.extend(evaluate_spf_findings(spf))
+    raw_findings.extend(evaluate_dkim_findings(dkim))
     raw_findings.extend(evaluate_dmarc_findings(dmarc))
 
     # Deduplicate findings by (id, evidence)

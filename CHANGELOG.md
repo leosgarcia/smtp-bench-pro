@@ -4,6 +4,23 @@ Todas as mudanças relevantes do SMTP Bench Pro são documentadas neste arquivo.
 
 O projeto segue versionamento semântico enquanto estiver em desenvolvimento incremental.
 
+## 1.0.0-rc1
+
+- Consolidado o ciclo funcional do SMTP Bench Pro como candidata estável à versão 1.0.
+- Mantidos benchmark SMTP, diagnostics, TLS/certificate, histórico, exportação, comparação, Mail DNS, SPF, DKIM e DMARC.
+- Consolidada a fundação de empacotamento Windows com artefato PyInstaller e smoke test.
+- Mantida a convergência visual do About com o DNS Bench Pro.
+
+## 0.4.0
+
+- Adicionado DKIM Diagnostics estático por selectors informados manualmente.
+- Adicionado parser DKIM para tags `v`, `k`, `p`, `h`, `t`, `s` e `n`, com suporte de parsing para RSA e Ed25519.
+- Adicionada detecção de selector ausente, múltiplos registros DKIM, sintaxe inválida, `p=` vazio/revogado, chave pública inválida, tipo de chave não suportado e RSA fraca quando determinável.
+- Adicionados findings DKIM estáveis `MAILDNS-DKIM-001` a `MAILDNS-DKIM-006`.
+- Integrado DKIM à aba DNS de E-mail, histórico read-only e exports JSON/HTML de snapshots históricos.
+- Mantido SQLite Schema v4, com compatibilidade para snapshots legados sem DKIM.
+- Mantida fronteira de segurança: DKIM usa somente DNS TXT, sem SMTP ativo, sem AUTH, sem envio e sem validação de assinatura real.
+
 ## 0.3.0
 
 - Adicionada aba "DNS de E-mail" para diagnóstico estático de Mail DNS.

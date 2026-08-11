@@ -9,6 +9,7 @@ from smtp_bench_pro.domain.diagnostic_options import (
 from smtp_bench_pro.domain.enums import ProbeStatus, SecurityMode
 from smtp_bench_pro.domain.results import SMTPProbeResult
 from smtp_bench_pro.ui.main_window import SMTPBenchMainWindow
+from smtp_bench_pro.ui.widgets.about import AboutWidget
 from smtp_bench_pro.ui.widgets.smtp_bench_widget import SMTPBenchWidget
 
 
@@ -18,9 +19,10 @@ def test_main_window_instantiates(qtbot) -> None:
 
     assert window.windowTitle() == "SMTP Bench Pro"
     assert isinstance(window.bench_widget.tab_widget, QTabWidget)
+    assert window.bench_widget.tab_widget.tabText(window.bench_widget.tab_widget.count() - 1) == "Sobre"
 
 
-def test_integrated_widget_hides_about_tab(qtbot, tmp_path) -> None:
+def test_integrated_widget_hides_about_tab(qtbot) -> None:
     widget = SMTPBenchWidget(include_about=False)
     qtbot.addWidget(widget)
 
@@ -159,3 +161,21 @@ def test_no_finding_state_for_command(qtbot) -> None:
     widget._update_command_details_from_selection()
 
     assert "Nenhum achado de segurança associado" in widget.command_details.toPlainText()
+
+
+def test_about_widget_matches_institutional_pattern(qtbot) -> None:
+    widget = AboutWidget()
+    qtbot.addWidget(widget)
+
+    assert "SMTP Bench Pro" in widget.sys_info_str
+    assert "Integration API: 1" in widget.sys_info_str
+    assert "Schema SQLite: 4" in widget.sys_info_str
+
+
+def test_main_window_about_switches_to_about_tab(qtbot) -> None:
+    window = SMTPBenchMainWindow()
+    qtbot.addWidget(window)
+
+    window._show_about()
+
+    assert window.bench_widget.tab_widget.tabText(window.bench_widget.tab_widget.currentIndex()) == "Sobre"

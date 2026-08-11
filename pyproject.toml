@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "smtp-bench-pro"
-version = "0.3.0"
+version = "1.0.0-rc1"
 description = "Professional SMTP Benchmark & Diagnostics"
 authors = [
     { name = "WL Tech" }
@@ -24,6 +24,7 @@ dev = [
     "pytest-qt>=4.2.0",
     "ruff>=0.6.0",
     "bandit>=1.7.0",
+    "pyinstaller>=6.10.0",
 ]
 
 [project.scripts]
@@ -50,7 +51,3 @@ ignore = ["UP006", "UP007"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
-
-
-
-

@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 import logging
 
 from smtp_bench_pro.domain.mail_dns import (
+    DKIMDiagnosticResult,
     DMARCDiagnosticResult,
     DMARCStatus,
     FCRDNSStatus,
@@ -20,6 +21,7 @@ from smtp_bench_pro.domain.mail_dns import (
     SPFDiagnosticResult,
     SPFStatus,
 )
+from smtp_bench_pro.engine.dkim_diagnostics import DKIMDiagnosticsService
 from smtp_bench_pro.engine.dmarc_diagnostics import DMARCDiagnosticsService
 from smtp_bench_pro.engine.dns_resolver import IMailDNSResolver, MailDNSResolver
 from smtp_bench_pro.engine.organizational_domain import get_organizational_domain
@@ -36,6 +38,7 @@ class MailDNSDiagnosticsOutcome:
     target: MailDomainTarget
     routing: MailRoutingDiagnosticResult
     spf: SPFDiagnosticResult
+    dkim: DKIMDiagnosticResult
     dmarc: DMARCDiagnosticResult
     identity_summary: MailIdentitySummary
     findings: tuple[MailDNSFinding, ...]
@@ -60,6 +63,7 @@ class MailDNSDiagnosticsCoordinator:
         self,
         raw_domain_input: str,
         progress_callback: callable | None = None,
+        dkim_selectors: str | tuple[str, ...] | list[str] | None = None,
     ) -> MailDNSDiagnosticsOutcome:
         """Executes full static Mail DNS diagnostics pipeline.
 
@@ -88,18 +92,25 @@ class MailDNSDiagnosticsCoordinator:
         spf_service = SPFDiagnosticsService(self.resolver)
         spf = spf_service.diagnose(domain)
 
-        # 4. DMARC Diagnostics
+        # 4. DKIM Diagnostics
         if progress_callback:
-            progress_callback(4, "Analisando política DMARC e Organizational Domain...")
+            progress_callback(4, "Analisando selectors DKIM informados...")
+
+        dkim_service = DKIMDiagnosticsService(self.resolver)
+        dkim = dkim_service.diagnose(domain, dkim_selectors)
+
+        # 5. DMARC Diagnostics
+        if progress_callback:
+            progress_callback(5, "Analisando política DMARC e Organizational Domain...")
 
         dmarc_service = DMARCDiagnosticsService(self.resolver)
         dmarc = dmarc_service.diagnose(domain)
 
-        # 5. Security Rules Engine
+        # 6. Security Rules Engine
         if progress_callback:
-            progress_callback(5, "Avaliando regras de segurança e gerando achados...")
+            progress_callback(6, "Avaliando regras de segurança e gerando achados...")
 
-        findings = evaluate_mail_dns_findings(routing, spf, dmarc)
+        findings = evaluate_mail_dns_findings(routing, spf, dmarc, dkim)
 
         # 6. Build Identity Summary
         org_domain = get_organizational_domain(domain)
@@ -115,6 +126,8 @@ class MailDNSDiagnosticsCoordinator:
             mx_count=mx_count,
             has_null_mx=has_null_mx,
             spf_policy=spf.status.value,
+            dkim_valid_selectors=sum(1 for result in dkim.results if result.status.value == "VALID"),
+            dkim_total_selectors=len(dkim.results),
             dmarc_policy=dmarc.policy or dmarc.status.value,
             fcrdns_aligned_ips=fcrdns_aligned,
             fcrdns_total_ips=fcrdns_total,
@@ -138,6 +151,7 @@ class MailDNSDiagnosticsCoordinator:
             target=target,
             routing=routing,
             spf=spf,
+            dkim=dkim,
             dmarc=dmarc,
             identity_summary=summary,
             findings=findings,
@@ -152,9 +166,10 @@ class MailDNSDiagnosticsCoordinator:
         raw_domain_input: str,
         run_id: int | None = None,
         progress_callback: callable | None = None,
+        dkim_selectors: str | tuple[str, ...] | list[str] | None = None,
     ) -> tuple[MailDNSDiagnosticsOutcome, MailDNSRunSnapshot | None]:
         """Executes diagnostics and persists MailDNSRunSnapshot to SQLite repository."""
-        outcome = self.execute_diagnostics(raw_domain_input, progress_callback)
+        outcome = self.execute_diagnostics(raw_domain_input, progress_callback, dkim_selectors)
 
         if not self.repository:
             return outcome, None
@@ -176,6 +191,7 @@ class MailDNSDiagnosticsCoordinator:
             routing=outcome.routing,
             spf=outcome.spf,
             dmarc=outcome.dmarc,
+            dkim=outcome.dkim,
             identity_summary=outcome.identity_summary,
             findings=outcome.findings,
             created_at=outcome.completed_at,
@@ -190,6 +206,7 @@ class MailDNSDiagnosticsCoordinator:
                 routing=snapshot.routing,
                 spf=snapshot.spf,
                 dmarc=snapshot.dmarc,
+                dkim=snapshot.dkim,
                 identity_summary=snapshot.identity_summary,
                 findings=snapshot.findings,
                 created_at=snapshot.created_at,

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 import re
 
@@ -52,6 +52,16 @@ class DMARCStatus(StrEnum):
     VALID = "VALID"
     INVALID_SYNTAX = "INVALID_SYNTAX"
     MULTIPLE = "MULTIPLE"
+
+
+class DKIMStatus(StrEnum):
+    ABSENT = "ABSENT"
+    VALID = "VALID"
+    MULTIPLE = "MULTIPLE"
+    INVALID_SYNTAX = "INVALID_SYNTAX"
+    REVOKED = "REVOKED"
+    UNSUPPORTED_KEY_TYPE = "UNSUPPORTED_KEY_TYPE"
+    INVALID_PUBLIC_KEY = "INVALID_PUBLIC_KEY"
 
 
 class MailDNSSeverity(StrEnum):
@@ -197,6 +207,31 @@ class SPFDiagnosticResult:
     validation_error: str | None = None
 
 
+
+
+@dataclass(frozen=True)
+class DKIMSelectorResult:
+    selector: str
+    query_name: str
+    status: DKIMStatus
+    raw_record: str | None = None
+    key_type: str | None = None
+    public_key_present: bool = False
+    public_key_bits: int | None = None
+    flags: tuple[str, ...] = ()
+    services: tuple[str, ...] = ()
+    hash_algorithms: tuple[str, ...] = ()
+    notes: tuple[str, ...] = ()
+    validation_errors: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class DKIMDiagnosticResult:
+    domain: str
+    selectors: tuple[str, ...]
+    results: tuple[DKIMSelectorResult, ...]
+    checked_at: str
+
 @dataclass(frozen=True)
 class DMARCDiagnosticResult:
     status: DMARCStatus
@@ -217,7 +252,7 @@ class MailDNSFinding:
     id: str
     title: str
     severity: MailDNSSeverity
-    category: str  # "MX", "PTR", "SPF", "DMARC"
+    category: str  # "MX", "PTR", "SPF", "DKIM", "DMARC"
     description: str
     evidence: str
     recommendation: str
@@ -233,6 +268,8 @@ class MailIdentitySummary:
     dmarc_policy: str | None
     fcrdns_aligned_ips: int
     fcrdns_total_ips: int
+    dkim_valid_selectors: int = 0
+    dkim_total_selectors: int = 0
 
 
 @dataclass(frozen=True)
@@ -246,3 +283,6 @@ class MailDNSRunSnapshot:
     identity_summary: MailIdentitySummary
     findings: tuple[MailDNSFinding, ...]
     created_at: str
+    dkim: DKIMDiagnosticResult = field(
+        default_factory=lambda: DKIMDiagnosticResult(domain="", selectors=(), results=(), checked_at="")
+    )

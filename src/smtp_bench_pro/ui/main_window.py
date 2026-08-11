@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 from PySide6.QtGui import QAction
-from PySide6.QtWidgets import QMainWindow, QMessageBox
+from PySide6.QtWidgets import QMainWindow
 
 from smtp_bench_pro.ui.styles import APP_STYLESHEET
 from smtp_bench_pro.ui.widgets.smtp_bench_widget import SMTPBenchWidget
-from smtp_bench_pro.version import __version__
 
 
 class SMTPBenchMainWindow(QMainWindow):
@@ -35,14 +34,10 @@ class SMTPBenchMainWindow(QMainWindow):
         help_menu.addAction(about_action)
 
     def _show_about(self) -> None:
-        QMessageBox.about(
-            self,
-            "Sobre o SMTP Bench Pro",
-            (
-                f"SMTP Bench Pro\nVersion {__version__}\nWL Tech\n(c) 2026 WL Tech\n\n"
-                "Diagnostico e benchmark SMTP profissional."
-            ),
-        )
+        for index in range(self.bench_widget.tab_widget.count()):
+            if self.bench_widget.tab_widget.tabText(index) == "Sobre":
+                self.bench_widget.tab_widget.setCurrentIndex(index)
+                return
 
     def closeEvent(self, event) -> None:  # noqa: N802
         self.bench_widget.engine.cancel_all()
