@@ -1,7 +1,7 @@
 # SMTP Bench Pro 1.0 Final Release Report
 
 ## Executive Summary
-SMTP Bench Pro foi promovido para a versão estável 1.0.0. A release final foi validada localmente com testes, build Windows, smoke test, integração com Bench Pro Core e geração de hash SHA256.
+SMTP Bench Pro foi promovido para a versão estável 1.0.0. A release final foi validada localmente com testes, build Windows, smoke test, integração com Bench Pro Core, geração de hash SHA256 e publicação no GitHub.
 
 ## Version
 1.0.0
@@ -10,7 +10,7 @@ SMTP Bench Pro foi promovido para a versão estável 1.0.0. A release final foi 
 - `dist/SMTP-Bench-Pro-1.0.0-Windows-x64.zip`
 
 ## SHA256
-- `D0C0839311F083499FB0517660FAEEE7456823AA18DE90B7FC03A19C3D7344E1`
+- `0E95FB584400F9E1C9B809E6EFE59E747D9801C2D80A60D6604DD9A699BE5C1D`
 
 ## Smoke Test
 - `Smoke test passed.`
@@ -27,16 +27,16 @@ SMTP Bench Pro foi promovido para a versão estável 1.0.0. A release final foi 
 - `pytest -q` no Core: 51 passed
 
 ## Git Commit
-- pendente de commit final
+- `3d3f761 docs: archive temporary smtp reports`
 
 ## Tag
-- pendente de criação final
+- `v1.0.0`
 
 ## GitHub Release URL
-- pendente de publicação final
+- `https://github.com/leosgarcia/smtp-bench-pro/releases/tag/v1.0.0`
 
 ## RC1 Cleanup Decision
-- manter `v1.0.0-rc1` como histórico após a publicação final
+- manter `v1.0.0-rc1` como histórico
 
 ## Known Limitations
 - sem AUTH real;
@@ -49,8 +49,8 @@ SMTP Bench Pro foi promovido para a versão estável 1.0.0. A release final foi 
 - sem MSI/NSIS nesta versão.
 
 ## Risks
-- artefatos antigos de build em `dist/` ainda podem existir até a sanitização final;
-- a publicação final depende apenas do commit, tag e release estáveis, sem novas features.
+- artefatos antigos de build em `dist/` podem ser removidos em sanitização adicional, se desejado;
+- a release final já está publicada e vinculada ao commit e tag estáveis.
 
 ## Final Verdict
-Pendente de publicação estável `SMTP BENCH PRO 1.0.0 — RELEASED`.
+SMTP BENCH PRO 1.0.0 — RELEASED
